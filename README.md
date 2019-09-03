@@ -22,9 +22,9 @@ sudo apt-get install libcurl3-dev (only for tests)
 
 ## Установка стабильной версии:
 ```bash
-wget -O onyxup-1.0.1.tar.gz  https://codeload.github.com/myduomilia/onyxup/tar.gz/1.0.1
-tar -zxvf onyxup-1.0.1.tar.gz 
-cd onyxup-1.0.1
+wget -O onyxup-1.0.0.tar.gz  https://codeload.github.com/myduomilia/onyxup/tar.gz/1.0.0
+tar -zxvf onyxup-1.0.0.tar.gz 
+cd onyxup-1.0.0
 mkdir build
 cd build/
 cmake ..
