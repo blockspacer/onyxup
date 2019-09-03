@@ -1,0 +1,20 @@
+{
+    "server" : {
+        "threads": 8,
+        "max_connection": 10000,
+        "max_input_length_buffer": 1048576,
+        "max_output_length_buffer": 1048576,
+        "time_limit_request_seconds": 60,
+        "limit_local_tasks": 100
+    },
+    "static-resources": {
+        "directory": "",
+        "compress": false,
+        "cache": true
+    },
+    "statistics": {
+        "enable" : false,
+        "url" : false
+    }
+
+}

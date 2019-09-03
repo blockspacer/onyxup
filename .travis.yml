@@ -1,0 +1,25 @@
+dist: bionic
+language: cpp
+os:
+  - linux
+compiler:
+  - gcc
+script:
+  - mkdir build
+  - cd build
+  - cmake -DBUILD_TESTING=on ..
+  - cmake --build .
+#  - cppcheck -q -j4 --enable=warning,style,performance,portability --error-exitcode=1 ../sources
+  - make test
+before_install:
+  - sudo apt install libgtest-dev cmake
+  - sudo wget https://github.com/google/googletest/archive/release-1.8.0.tar.gz
+  - sudo tar xf release-1.8.0.tar.gz
+  - cd googletest-release-1.8.0
+  - sudo cmake -DBUILD_SHARED_LIBS=ON .
+  - sudo make
+  - sudo cp -a googletest/include/gtest /usr/include
+  - sudo cp -a googlemock/gtest/libgtest_main.so googlemock/gtest/libgtest.so /usr/lib/
+  - cd $TRAVIS_BUILD_DIR
+install:
+  - sudo apt-get install cppcheck
