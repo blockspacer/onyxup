@@ -129,10 +129,10 @@ namespace onyxup {
 
     protected:
         static void parseParamsRequest(onyxup::PtrRequest request, size_t uri_len) noexcept;
-        static std::vector<std::pair<size_t , size_t>> parseRangesRequest(const std::string & src, size_t max_index_byte);
+        static std::vector<std::pair<size_t , size_t>> parseRangesRequest(const std::string & src, size_t length);
 
     public:
-        HttpServer(int port, size_t number_threads);
+        HttpServer(int port, size_t n);
 
         HttpServer(const HttpServer &) = delete;
         ~HttpServer();
@@ -143,8 +143,8 @@ namespace onyxup {
         static std::unordered_map<std::string, std::string> urlencoded(const std::string & src);
         static std::unordered_map<std::string, MultipartFormDataObject> multipartFormData(PtrCRequest request);
 
-        static void setPathToStaticResources(const std::string & path_to_static_resources) {
-            m_path_to_static_resources = path_to_static_resources;
+        static void setPathToStaticResources(const std::string & path) {
+            m_path_to_static_resources = path;
         }
 
         static void setCompressStaticResources(bool compress){
@@ -159,19 +159,23 @@ namespace onyxup {
 
         static int getTimeLimitRequestSeconds();
 
-        static void setTimeLimitRequestSeconds(int time_limit_request_seconds);
+        static void setTimeLimitRequestSeconds(int limit);
 
         static int getLimitLocalTasks();
 
-        static void setLimitLocalTasks(int limit_local_tasks);
+        static void setLimitLocalTasks(int limit);
 
-        static void setCachedStaticResources(bool cached_static_resources);
+        static void setCachedStaticResources(bool flag);
 
-        static void setPathToConfigurationFile(const std::string &path_to_configuration_file);
+        static void setPathToConfigurationFile(const std::string &file);
 
         static void setStatisticsEnable(bool enable);
 
         static void setStatisticsUrl(const std::string & url);
+
+        void setMaxInputLengthBuffer(size_t length);
+
+        void setMaxOutputLengthBuffer(size_t length);
 
     };
 

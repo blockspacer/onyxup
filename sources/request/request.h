@@ -70,7 +70,11 @@ namespace onyxup {
             m_params[key] = value;
         }
         
-        inline const std::string & getFullURI() const {
+        inline const std::string & getFullURIRef() const {
+            return m_full_uri;
+        }
+
+        inline const std::string getFullURI() const {
             return m_full_uri;
         }
         

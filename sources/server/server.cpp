@@ -193,7 +193,7 @@ int onyxup::HttpServer::writeToOutputBuffer(int fd, const char *data, size_t len
 }
 
 void onyxup::HttpServer::parseParamsRequest(onyxup::PtrRequest request, size_t uri_len) noexcept {
-    const char *full_uri = request->getFullURI().c_str();
+    const char *full_uri = request->getFullURIRef().c_str();
     char *start_params_part = const_cast<char *>(strchr(full_uri, '?'));
     if (start_params_part) {
         request->setURI(std::string(full_uri, start_params_part - full_uri));
@@ -215,13 +215,13 @@ void onyxup::HttpServer::parseParamsRequest(onyxup::PtrRequest request, size_t u
             delete[] buf_params;
         }
     } else
-        request->setURI(request->getFullURI());
+        request->setURI(request->getFullURIRef());
 }
 
 std::vector<std::pair<size_t, size_t>>
-onyxup::HttpServer::parseRangesRequest(const std::string &src, size_t max_index_byte) {
+onyxup::HttpServer::parseRangesRequest(const std::string &src, size_t length) {
     std::vector<std::pair<size_t, size_t>> ranges;
-    if (!max_index_byte)
+    if (!length)
         throw onyxup::OnyxupException("Неверный формат HTTP range requests");
 
     int pos = src.find("bytes=");
@@ -237,9 +237,9 @@ onyxup::HttpServer::parseRangesRequest(const std::string &src, size_t max_index_
                         throw onyxup::OnyxupException("Неверный формат HTTP range requests");
                     value = value * 10 + (token_with_out_spaces[i] - '0');
                 }
-                if (value > max_index_byte)
+                if (value > length)
                     throw onyxup::OnyxupException("Неверный формат HTTP range requests");
-                ranges.emplace_back(value, max_index_byte);
+                ranges.emplace_back(value, length);
             } else if (token_with_out_spaces[0] == '-') {
                 size_t value = 0;
                 for (size_t i = 1; i < token_with_out_spaces.size(); i++) {
@@ -247,9 +247,9 @@ onyxup::HttpServer::parseRangesRequest(const std::string &src, size_t max_index_
                         throw onyxup::OnyxupException("Неверный формат HTTP range requests");
                     value = value * 10 + (token_with_out_spaces[i] - '0');
                 }
-                if (value > max_index_byte)
+                if (value > length)
                     throw onyxup::OnyxupException("Неверный формат HTTP range requests");
-                ranges.emplace_back(max_index_byte - value, max_index_byte);
+                ranges.emplace_back(length - value, length);
             } else {
                 size_t pos = token_with_out_spaces.find("-");
                 if (pos == std::string::npos)
@@ -267,7 +267,7 @@ onyxup::HttpServer::parseRangesRequest(const std::string &src, size_t max_index_
                         throw onyxup::OnyxupException("Неверный формат HTTP range requests");
                     value_right = value_right * 10 + (token_with_out_spaces[i] - '0');
                 }
-                if (value_right < value_left || value_right > max_index_byte)
+                if (value_right < value_left || value_right > length)
                     throw onyxup::OnyxupException("Неверный формат HTTP range requests");
                 ranges.emplace_back(value_left, value_right);
             }
@@ -281,7 +281,7 @@ onyxup::HttpServer::parseRangesRequest(const std::string &src, size_t max_index_
         for (size_t i = 0; i < ranges.size(); i++) {
             std::pair<size_t, size_t> &pair = ranges[i];
             if (i) {
-                if (pair.first < border || pair.second > max_index_byte)
+                if (pair.first < border || pair.second > length)
                     throw onyxup::OnyxupException("Неверный формат HTTP range requests");
             }
             border = pair.second;
@@ -301,7 +301,7 @@ onyxup::PtrTask onyxup::HttpServer::dispatcher(PtrRequest request) noexcept {
                 if (it->getMethod() == req->getMethod()) {
                     regmatch_t pm;
                     regex_t regex = it->getPregex();
-                    if (regexec(&regex, req->getFullURI().c_str(), 0, &pm, 0) == 0) {
+                    if (regexec(&regex, req->getFullURIRef().c_str(), 0, &pm, 0) == 0) {
                         task->setType(it->getTaskType());
                         task->setRequest(req);
                         task->setHandler(it->getHandler());
@@ -368,7 +368,7 @@ void onyxup::HttpServer::handler_tasks(int id) {
     }
 }
 
-onyxup::HttpServer::HttpServer(int port, size_t number_threads) : m_number_threads(number_threads) {
+onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
 
 #ifdef DEBUG_MODE
     plog::init(plog::debug, &consoleAppender);
@@ -545,7 +545,7 @@ void onyxup::HttpServer::run() noexcept {
             if (m_requests[i]) {
                 if (std::chrono::duration_cast<std::chrono::seconds>(now - m_alive_sockets[i]).count() >
                     HttpServer::m_time_limit_request_seconds) {
-                    if (m_requests[i]->getFullURI().empty())
+                    if (m_requests[i]->getFullURIRef().empty())
                         closeAllSocketsAndClearData(m_requests[i]->getFD());
                     else {
                         ResponseBase response = std::move(onyxup::Response408());
@@ -554,7 +554,7 @@ void onyxup::HttpServer::run() noexcept {
                         writeToOutputBuffer(m_requests[i]->getFD(), str.c_str(), str.length());
                         m_requests[i]->setClosingConnect(true);
                         m_alive_sockets[m_requests[i]->getFD()] = std::chrono::steady_clock::now();
-                        LOGI << m_requests[i]->getMethod() << " " << m_requests[i]->getFullURI() << " "
+                        LOGI << m_requests[i]->getMethod() << " " << m_requests[i]->getFullURIRef() << " "
                              << ResponseState::RESPONSE_STATE_METHOD_REQUEST_TIMEOUT_CODE;
                     }
                 }
@@ -572,9 +572,9 @@ void onyxup::HttpServer::run() noexcept {
                     int code = writeToOutputBuffer(task->getFD(), task->getResponseData().c_str(),
                                                    task->getResponseData().size());
                     if (code == ResponseState::RESPONSE_STATE_PAYLOAD_TOO_LARGE_CODE)
-                        LOGI << task->getRequest()->getMethod() << " " << task->getRequest()->getFullURI() << " "
+                        LOGI << task->getRequest()->getMethod() << " " << task->getRequest()->getFullURIRef() << " "
                              << ResponseState::RESPONSE_STATE_PAYLOAD_TOO_LARGE_CODE;
-                    else LOGI << task->getRequest()->getMethod() << " " << task->getRequest()->getFullURI() << " "
+                    else LOGI << task->getRequest()->getMethod() << " " << task->getRequest()->getFullURIRef() << " "
                               << task->getCode();
                 }
                 delete task;
@@ -760,7 +760,7 @@ void onyxup::HttpServer::run() noexcept {
                                                           std::to_string(response.getBody().size()));
                                     std::string str = response.to_string();
                                     writeToOutputBuffer(events[i].data.fd, str.c_str(), str.size());
-                                    LOGI << request->getMethod() << " " << request->getFullURI() << " "
+                                    LOGI << request->getMethod() << " " << request->getFullURIRef() << " "
                                          << ResponseState::RESPONSE_STATE_SERVICE_UNAVAILABLE_CODE;
                                     delete task;
                                 } else
@@ -778,7 +778,7 @@ void onyxup::HttpServer::run() noexcept {
                             response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
                             std::string str = response.to_string();
                             writeToOutputBuffer(events[i].data.fd, str.c_str(), str.size());
-                            LOGI << request->getMethod() << " " << request->getFullURI() << " "
+                            LOGI << request->getMethod() << " " << request->getFullURIRef() << " "
                                  << ResponseState::RESPONSE_STATE_NOT_FOUND_CODE;
                             statistics_service->addTotalNumberClientRequests();
                         }
@@ -850,7 +850,7 @@ onyxup::ResponseBase onyxup::HttpServer::default_callback_static_resources(onyxu
      * Определяем content type по расширению файла
      */
     char content_type_key[10] = {'\0'};
-    char *token_dot = strrchr((char *) request->getFullURI().c_str(), '.');
+    char *token_dot = strrchr((char *) request->getFullURIRef().c_str(), '.');
     if (token_dot == NULL)
         return onyxup::Response404();
     if (strlen(token_dot + 1) > sizeof(content_type_key) - 1) {
@@ -1017,24 +1017,24 @@ int onyxup::HttpServer::getTimeLimitRequestSeconds() {
     return m_time_limit_request_seconds;
 }
 
-void onyxup::HttpServer::setTimeLimitRequestSeconds(int time_limit_request_seconds) {
-    m_time_limit_request_seconds = time_limit_request_seconds;
+void onyxup::HttpServer::setTimeLimitRequestSeconds(int limit) {
+    m_time_limit_request_seconds = limit;
 }
 
 int onyxup::HttpServer::getLimitLocalTasks() {
     return m_limit_local_tasks;
 }
 
-void onyxup::HttpServer::setLimitLocalTasks(int limit_local_tasks) {
-    m_limit_local_tasks = limit_local_tasks;
+void onyxup::HttpServer::setLimitLocalTasks(int limit) {
+    m_limit_local_tasks = limit;
 }
 
-void onyxup::HttpServer::setCachedStaticResources(bool cached_static_resources) {
-    m_cached_static_resources = cached_static_resources;
+void onyxup::HttpServer::setCachedStaticResources(bool flag) {
+    m_cached_static_resources = flag;
 }
 
-void onyxup::HttpServer::setPathToConfigurationFile(const std::string &path_to_configuration_file) {
-    m_path_to_configuration_file = path_to_configuration_file;
+void onyxup::HttpServer::setPathToConfigurationFile(const std::string &file) {
+    m_path_to_configuration_file = file;
 }
 
 void onyxup::HttpServer::setStatisticsEnable(bool enable) {
@@ -1054,4 +1054,12 @@ void onyxup::HttpServer::closeAllSocketsAndClearData(int fd) {
     m_buffers[fd] = nullptr;
     m_requests[fd] = nullptr;
     statistics_service->addTotalNumberConnectionsProcessed();
+}
+
+void onyxup::HttpServer::setMaxInputLengthBuffer(size_t length) {
+    m_max_input_length_buffer = length;
+}
+
+void onyxup::HttpServer::setMaxOutputLengthBuffer(size_t length) {
+    m_max_output_length_buffer = length;
 }
