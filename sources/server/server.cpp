@@ -166,15 +166,20 @@ static void prepare_compress_response(onyxup::ResponseBase &response) {
     response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
 }
 
-bool onyxup::HttpServer::writeToOutputBuffer(int fd, const char *data, size_t len) noexcept {
+int onyxup::HttpServer::writeToOutputBuffer(int fd, const char *data, size_t len) noexcept {
     PtrBuffer buffer = m_buffers[fd];
+    int code = ResponseState::RESPONSE_STATE_OK_CODE;
     if (buffer->getOutBufferPosition() + len >= m_max_output_length_buffer) {
-        LOGE << "Превышен размер выходного буфера";
-        closeAllSocketsAndClearData(fd);
-        return false;
-    }
-
-    buffer->appendOutBuffer(data, len);
+        buffer->clear();
+        Response413 response = Response413();
+        response.appendHeader("Content-Length",
+                              std::to_string(response.getBody().size()));
+        std::string str = response.to_string();
+        buffer->appendOutBuffer(str.c_str(), str.size());
+        LOGD << "Превышен размер выходного буфера";
+        code = ResponseState::RESPONSE_STATE_PAYLOAD_TOO_LARGE_CODE;
+    } else
+        buffer->appendOutBuffer(data, len);
     struct epoll_event event;
     event.data.fd = fd;
     event.events = EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
@@ -182,9 +187,9 @@ bool onyxup::HttpServer::writeToOutputBuffer(int fd, const char *data, size_t le
     if (epoll_ctl(m_e_poll_fd, EPOLL_CTL_MOD, fd, &event) == -1) {
         LOGE << "Не возможно модифицировать файловый дескриптор. Ошибка " << errno;
         closeAllSocketsAndClearData(fd);
-        return false;
+        return -1;
     }
-    return true;
+    return code;
 }
 
 void onyxup::HttpServer::parseParamsRequest(onyxup::PtrRequest request, size_t uri_len) noexcept {
@@ -434,7 +439,7 @@ onyxup::HttpServer::HttpServer(int port, size_t number_threads) : m_number_threa
             LOGE << "Ошибка чтения конфигурационного файла. Поле static-resources -> cache должно быть булевым";
         }
     }
-    if (settings.find("statistics") != settings.end()){
+    if (settings.find("statistics") != settings.end()) {
         try {
             m_statistics_enable = settings["enable"].get<bool>();
         } catch (json::exception &ex) {
@@ -523,8 +528,8 @@ void onyxup::HttpServer::run() noexcept {
     /*
      * Подключение сбора статистики
      */
-    if(m_statistics_enable){
-        this->addRoute("GET", m_statistics_url.c_str(), [](PtrCRequest request) -> ResponseBase{
+    if (m_statistics_enable) {
+        this->addRoute("GET", m_statistics_url.c_str(), [](PtrCRequest request) -> ResponseBase {
             return statistics_service->callback(request);
         }, EnumTaskType::LOCAL_TASK);
     }
@@ -533,7 +538,7 @@ void onyxup::HttpServer::run() noexcept {
         static size_t counter_check_limit_time_request = 0;
         std::chrono::time_point<std::chrono::steady_clock> now = std::chrono::steady_clock::now();
 
-        if(m_statistics_enable)
+        if (m_statistics_enable)
             statistics_service->setCurrentNumberTasks(m_queue_tasks.size() + m_queue_static_tasks.size());
         for (size_t i = counter_check_limit_time_request;
              i < m_max_connection && i < counter_check_limit_time_request + 100; i++) {
@@ -548,6 +553,7 @@ void onyxup::HttpServer::run() noexcept {
                         std::string str = response.to_string();
                         writeToOutputBuffer(m_requests[i]->getFD(), str.c_str(), str.length());
                         m_requests[i]->setClosingConnect(true);
+                        m_alive_sockets[m_requests[i]->getFD()] = std::chrono::steady_clock::now();
                         LOGI << m_requests[i]->getMethod() << " " << m_requests[i]->getFullURI() << " "
                              << ResponseState::RESPONSE_STATE_METHOD_REQUEST_TIMEOUT_CODE;
                     }
@@ -563,10 +569,13 @@ void onyxup::HttpServer::run() noexcept {
                  * Проверяем что данный сокет еще жив
                 */
                 if (task->getTimePoint() == m_alive_sockets[task->getFD()]) {
-                    writeToOutputBuffer(task->getFD(), task->getResponseData().c_str(),
-                                        task->getResponseData().size());
-                    LOGI << task->getRequest()->getMethod() << " " << task->getRequest()->getFullURI() << " "
-                         << task->getCode();
+                    int code = writeToOutputBuffer(task->getFD(), task->getResponseData().c_str(),
+                                                   task->getResponseData().size());
+                    if (code == ResponseState::RESPONSE_STATE_PAYLOAD_TOO_LARGE_CODE)
+                        LOGI << task->getRequest()->getMethod() << " " << task->getRequest()->getFullURI() << " "
+                             << ResponseState::RESPONSE_STATE_PAYLOAD_TOO_LARGE_CODE;
+                    else LOGI << task->getRequest()->getMethod() << " " << task->getRequest()->getFullURI() << " "
+                              << task->getCode();
                 }
                 delete task;
             }
@@ -602,7 +611,7 @@ void onyxup::HttpServer::run() noexcept {
                     continue;
                 }
 
-                if(m_statistics_enable)
+                if (m_statistics_enable)
                     statistics_service->addTotalNumberConnectionsAccepted();
 
                 m_alive_sockets[conn_sock] = std::chrono::steady_clock::now();
@@ -647,12 +656,15 @@ void onyxup::HttpServer::run() noexcept {
                     }
                     PtrBuffer buffer = m_buffers[events[i].data.fd];
                     if (buffer->getInBufferPosition() + res >= m_max_input_length_buffer) {
-                        LOGE << "Превышен размер входного буфера";
-                        /*
-                         * TODO: Доработать ответ от сервера что превышен размер входного буфера
-                         */
-                        statistics_service->addTotalNumberClientRequests();
-                        closeAllSocketsAndClearData(events[i].data.fd);
+                        LOGD << "Превышен размер входного буфера";
+
+                        Response413 response = Response413();
+                        response.appendHeader("Content-Length",
+                                              std::to_string(response.getBody().size()));
+                        std::string str = response.to_string();
+                        writeToOutputBuffer(events[i].data.fd, str.c_str(), str.length());
+                        m_requests[events[i].data.fd]->setClosingConnect(true);
+                        m_requests[events[i].data.fd]->setHeaderAccept(true);
                         continue;
                     }
                     buffer->appendInBuffer(data, res);
@@ -743,7 +755,7 @@ void onyxup::HttpServer::run() noexcept {
                              */
                             if (task->getType() == EnumTaskType::LOCAL_TASK) {
                                 if (m_queue_tasks.size() > HttpServer::m_limit_local_tasks) {
-                                    ResponseBase response = std::move(onyxup::Response503());
+                                    ResponseBase response = onyxup::Response503();
                                     response.appendHeader("Content-Length",
                                                           std::to_string(response.getBody().size()));
                                     std::string str = response.to_string();
@@ -762,7 +774,7 @@ void onyxup::HttpServer::run() noexcept {
                             }
                             statistics_service->addTotalNumberClientRequests();
                         } else {
-                            ResponseBase response = std::move(onyxup::Response404());
+                            ResponseBase response = onyxup::Response404();
                             response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
                             std::string str = response.to_string();
                             writeToOutputBuffer(events[i].data.fd, str.c_str(), str.size());
@@ -1029,7 +1041,7 @@ void onyxup::HttpServer::setStatisticsEnable(bool enable) {
     m_statistics_enable = enable;
 }
 
-void onyxup::HttpServer::setStatisticsUrl(const std::string & url) {
+void onyxup::HttpServer::setStatisticsUrl(const std::string &url) {
     m_statistics_url = url;
 }
 

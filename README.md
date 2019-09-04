@@ -165,22 +165,3 @@ onyxup::ResponseBase multipart_form(onyxup::PtrCRequest request) {
 
 MIT License
 
-## История версий
-
-***Version: 1.0.1 (3 Sep 2019)***
-
-<ul>
- <li>Поддержка HTTP Range Requests</li>
- <li>Поддержка сжатия gzip</li>
- <li>Кеширование статических ресурсов</li>
- <li>Поддержка запросов GET, POST, PUT, DELETE, HEAD</li>
- <li>Поддержка многопоточной работы сервера</li>
- <li>Поддержка логирования</li>
- <li>Поддержка запросов application/x-www-form-urlencoded</li>
- <li>Поддержка запросов multipart/form-data</li>
- <li>Ограничение времени запроса на сервере и поиск зависших сокетов</li>
- <li>Поддержка Keep-Alive соединений</li>
- <li>Возможность управление настройкой сервера через конфигурационный файл</li>
- <li>Страница статистики сервера</li>
-</ul>
-

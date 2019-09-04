@@ -124,7 +124,7 @@ namespace onyxup {
         }
 
         void handler_tasks(int id);
-        bool writeToOutputBuffer(int fd, const char * data, size_t len) noexcept ;
+        int writeToOutputBuffer(int fd, const char * data, size_t len) noexcept ;
         PtrTask dispatcher(PtrRequest request) noexcept;
 
     protected:

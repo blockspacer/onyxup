@@ -60,6 +60,10 @@ namespace onyxup {
             m_number_bytes_to_send = nbytes_to_send;
         }
 
+        inline size_t getOutBufferSize() const {
+            return m_out_buffer_position;
+        }
+
         
         void appendInBuffer(const char * data, size_t size);
         void appendOutBuffer(const char * data, size_t size);
