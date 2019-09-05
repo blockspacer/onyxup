@@ -1,5 +1,7 @@
 /build/
 .idea/
+.kdev4/
+onyxup.kdev4
 cmake-build-debug/
 /nbproject/
 *.o

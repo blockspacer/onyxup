@@ -3,7 +3,7 @@
 
 [![Build Status](https://travis-ci.org/myduomilia/onyxup.svg?branch=master)](https://travis-ci.org/myduomilia/onyxup)
 
-## Используемы сторонние библиотеки
+## Используемые сторонние библиотеки
 [Plog - portable, simple and extensible C++ logging library](https://github.com/SergiusTheBest/plog/tree/master/include/plog)
 
 [PicoHTTPParser - tiny HTTP parser](https://github.com/h2o/picohttpparser)
@@ -65,6 +65,7 @@ sudo make install
 
 ```C++
 #include <onyxup/server/server.h>
+#include <onyxup/server/utils.h>
 #include <onyxup/response/response-json.h>
 #include <onyxup/response/response-html.h>
 #include <onyxup/response/response-file.h>
@@ -152,7 +153,7 @@ onyxup::ResponseBase params(onyxup::PtrCRequest request) {
 }
 
 onyxup::ResponseBase multipart_form(onyxup::PtrCRequest request) {
-    auto form_fields = onyxup::HttpServer::multipartFormData(request);
+    auto form_fields = onyxup::utils::multipartFormData(request);
     std::vector<char> data = form_fields["image"].getData();
     std::string filename = "./" + form_fields["image"].getFilename();
     std::ofstream f(filename, std::ios::binary);

@@ -4,13 +4,8 @@
 #include <unordered_map>
 
 #include "../sources/server/server.h"
-
-class WrapperHttpServer : public onyxup::HttpServer{
-public:
-    static std::unordered_map<std::string, onyxup::MultipartFormDataObject> multipartFormData(onyxup::PtrCRequest request){
-        return onyxup::HttpServer::multipartFormData(request);
-    }
-};
+#include "../sources/server/utils.h"
+#include "../sources/multipart/MultipartFormDataObject.h"
 
 class MultipartFormDataTests : public ::testing::Test {
 
@@ -39,7 +34,7 @@ TEST_F(MultipartFormDataTests, Test_1) {
     request->appendHeader("content-length", std::to_string(body.str().size()));
     request->setBody(body.str().c_str(), body.str().size());
 
-    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = WrapperHttpServer::multipartFormData(request);
+    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = onyxup::utils::multipartFormData(request);
     std::vector<char> data = form_fields["field"].getData();
     std::string value(data.begin(), data.end());
     ASSERT_STREQ(value.c_str(), "123");
@@ -54,7 +49,7 @@ TEST_F(MultipartFormDataTests, Test_2) {
     request->appendHeader("content-length", std::to_string(body.str().size()));
     request->setBody(body.str().c_str(), body.str().size());
 
-    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = WrapperHttpServer::multipartFormData(request);
+    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = onyxup::utils::multipartFormData(request);
 
     std::vector<char> data = form_fields["field-first"].getData();
     std::string value(data.begin(), data.end());
@@ -73,7 +68,7 @@ TEST_F(MultipartFormDataTests, Test_3) {
     request->appendHeader("content-length", std::to_string(body.str().size()));
     request->setBody(body.str().c_str(), body.str().size());
 
-    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = WrapperHttpServer::multipartFormData(request);
+    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = onyxup::utils::multipartFormData(request);
     std::vector<char> data = form_fields["field"].getData();
     std::string value(data.begin(), data.end());
     ASSERT_STREQ(value.c_str(), "1");
@@ -81,7 +76,7 @@ TEST_F(MultipartFormDataTests, Test_3) {
 
 TEST_F(MultipartFormDataTests, Test_4) {
     onyxup::PtrRequest request = onyxup::request::factoryRequest();
-    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = WrapperHttpServer::multipartFormData(request);
+    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = onyxup::utils::multipartFormData(request);
     ASSERT_EQ(form_fields.empty(), true);
 }
 
@@ -92,7 +87,7 @@ TEST_F(MultipartFormDataTests, Test_5) {
     request->appendHeader("content-type", "multipart/form-data; boundary=--Asrf456BGe4h");
     request->appendHeader("content-length", std::to_string(body.str().size()));
     request->setBody(body.str().c_str(), body.str().size());
-    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = WrapperHttpServer::multipartFormData(request);
+    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = onyxup::utils::multipartFormData(request);
 
     ASSERT_EQ(form_fields.empty(), true);
 }
@@ -104,7 +99,7 @@ TEST_F(MultipartFormDataTests, Test_6) {
     request->appendHeader("content-type", "multipart/form-data; boundary=--00000000");
     request->appendHeader("content-length", std::to_string(body.str().size()));
     request->setBody(body.str().c_str(), body.str().size());
-    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = WrapperHttpServer::multipartFormData(request);
+    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = onyxup::utils::multipartFormData(request);
 
     ASSERT_EQ(form_fields.empty(), true);
 }
@@ -116,7 +111,7 @@ TEST_F(MultipartFormDataTests, Test_7) {
     request->appendHeader("content-type", "multipart/form-data; boundary=--Asrf456BGe4h");
     request->appendHeader("content-length", std::to_string(body.str().size()));
     request->setBody(body.str().c_str(), body.str().size());
-    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = WrapperHttpServer::multipartFormData(request);
+    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = onyxup::utils::multipartFormData(request);
 
     ASSERT_EQ(form_fields.empty(), true);
 }
@@ -128,7 +123,7 @@ TEST_F(MultipartFormDataTests, Test_8) {
     request->appendHeader("content-type", "multipart/form-data; boundary=");
     request->appendHeader("content-length", std::to_string(body.str().size()));
     request->setBody(body.str().c_str(), body.str().size());
-    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = WrapperHttpServer::multipartFormData(request);
+    std::unordered_map<std::string, onyxup::MultipartFormDataObject> form_fields = onyxup::utils::multipartFormData(request);
 
     ASSERT_EQ(form_fields.empty(), true);
 }

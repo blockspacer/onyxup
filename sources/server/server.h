@@ -21,7 +21,6 @@
 #include <vector>
 #include <list>
 #include <functional>
-#include <algorithm>
 #include <mutex>
 #include <thread>
 #include <iterator>
@@ -30,6 +29,7 @@
 #include <atomic>
 #include <queue>
 
+#include "utils.h"
 #include "../buffer/buffer.h"
 #include "../request/request.h"
 #include "../exception/exception.h"
@@ -46,7 +46,6 @@
 #include "../plog/Log.h"
 #include "../plog/Appenders/ColorConsoleAppender.h"
 #include "../queue/thread-safe-queue.h"
-#include "../multipart/MultipartFormDataObject.h"
 #include "../json/json.hpp"
 #include "../services/statistics/StatisticsService.h"
 
@@ -127,10 +126,6 @@ namespace onyxup {
         int writeToOutputBuffer(int fd, const char * data, size_t len) noexcept ;
         PtrTask dispatcher(PtrRequest request) noexcept;
 
-    protected:
-        static void parseParamsRequest(onyxup::PtrRequest request, size_t uri_len) noexcept;
-        static std::vector<std::pair<size_t , size_t>> parseRangesRequest(const std::string & src, size_t length);
-
     public:
         HttpServer(int port, size_t n);
 
@@ -139,9 +134,6 @@ namespace onyxup {
 
         void run() noexcept ;
         void addRoute(const std::string & method, const char * regex, std::function<ResponseBase(PtrCRequest request) > handler, EnumTaskType type) noexcept ;
-
-        static std::unordered_map<std::string, std::string> urlencoded(const std::string & src);
-        static std::unordered_map<std::string, MultipartFormDataObject> multipartFormData(PtrCRequest request);
 
         static void setPathToStaticResources(const std::string & path) {
             m_path_to_static_resources = path;

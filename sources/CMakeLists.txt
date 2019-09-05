@@ -14,7 +14,9 @@ add_library(onyxup SHARED
         request/request.cpp
         response/response-base.cpp
         server/server.cpp
-        task/task.cpp services/statistics/StatisticsService.h services/statistics/StatisticsService.cpp)
+        task/task.cpp
+        services/statistics/StatisticsService.cpp
+        server/utils.cpp)
 
 if (BUILD_DEBUG_MODE)
     add_definitions(-DDEBUG_MODE)
