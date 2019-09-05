@@ -3,6 +3,7 @@
 .kdev4/
 onyxup.kdev4
 cmake-build-debug/
+CMakeLists.txt.user
 /nbproject/
 *.o
 *~
