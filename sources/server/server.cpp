@@ -1,5 +1,4 @@
 #include "server.h"
-#include "../services/statistics/StatisticsService.h"
 
 using namespace std::chrono_literals;
 using json = nlohmann::json;
@@ -16,7 +15,7 @@ std::string onyxup::HttpServer::m_path_to_static_resources;
 int onyxup::HttpServer::m_time_limit_request_seconds = 60;
 int onyxup::HttpServer::m_limit_local_tasks = 100;
 bool onyxup::HttpServer::m_compress_static_resources = false;
-bool onyxup::HttpServer::m_cached_static_resources = false;
+bool onyxup::HttpServer::m_cached_static_resources = true;
 std::string onyxup::HttpServer::m_path_to_configuration_file;
 std::unordered_map<std::string, std::string> onyxup::HttpServer::m_map_mime_types;
 std::unordered_map<std::string, onyxup::ResponseBase> onyxup::HttpServer::m_map_cached_static_resources;
@@ -44,87 +43,6 @@ static int set_non_blocking_mode_socket(int fd) {
     if (-1 == (flags = fcntl(fd, F_GETFL, 0)))
         flags = 0;
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-}
-
-static bool check_client_support_gzip_encoding(onyxup::PtrTask task) {
-    try {
-        if (task->getRequest()->getHeaderRef("accept-encoding").find("gzip") != std::string::npos)
-            return true;
-    } catch (std::out_of_range &ex) {
-        return false;
-    }
-}
-
-static bool check_client_request_range(onyxup::PtrTask task) {
-    try {
-        if (task->getRequest()->getHeaderRef("range").find("bytes") != std::string::npos)
-            return true;
-    } catch (std::out_of_range &ex) {
-        return false;
-    }
-}
-
-void static prepare_range_not_satisfiable_response(onyxup::ResponseBase &response) {
-    std::ostringstream os;
-    os << "*/" << response.getBody().size();
-    response.setCode(onyxup::ResponseState::RESPONSE_STATE_RANGE_NOT_SATISFIABLE_CODE);
-    response.setCodeMsg(onyxup::ResponseState::RESPONSE_STATE_RANGE_NOT_SATISFIABLE_MSG);
-    response.appendHeader("Content-Range", os.str());
-    response.setBody("");
-}
-
-static void prepare_range_response(onyxup::ResponseBase &response, std::vector<std::pair<size_t, size_t>> &ranges) {
-    if (ranges.size() == 1) {
-        std::string body;
-        std::copy(response.getBody().begin() + ranges[0].first,
-                  response.getBody().begin() + ranges[0].second + 1,
-                  std::back_insert_iterator<std::string>(body));
-        std::ostringstream os;
-        os << "bytes " << ranges[0].first << "-" << ranges[0].second << "/"
-           << response.getBody().size();
-        response.setCode(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_CODE);
-        response.setCodeMsg(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_MSG);
-        response.appendHeader("Content-Range", os.str());
-        response.appendHeader("Content-Length", std::to_string(body.size()));
-        response.setBody(body);
-    } else {
-        size_t length_body = response.getBody().size();
-        const char *content_type_body = response.getMime();
-        std::ostringstream os;
-        response.setCode(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_CODE);
-        response.setCodeMsg(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_MSG);
-        response.setMime(onyxup::MimeType::MIME_TYPE_MULTIPART_BYTES_RANGES);
-        for (size_t i = 0; i < ranges.size(); i++) {
-            auto range = ranges[i];
-            std::string body;
-            std::copy(response.getBody().begin() + range.first,
-                      response.getBody().begin() + range.second + 1,
-                      std::back_insert_iterator<std::string>(body));
-            os << "--3d6b6a416f9b5\r\n" << "Content-Type: " << content_type_body << "\r\n"
-               << "Content-Range: bytes " << range.first << "-" << range.second << "/"
-               << length_body << "\r\n\r\n" << body;
-            if (i < ranges.size() - 1)
-                os << "\r\n";
-        }
-        response.setBody(os.str());
-        response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
-    }
-}
-
-static void prepare_head_response(onyxup::ResponseBase &response) {
-    response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
-    response.setBody("");
-}
-
-static void prepare_default_response(onyxup::ResponseBase &response) {
-    response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
-}
-
-static void prepare_compress_response(onyxup::ResponseBase &response) {
-    response.appendHeader("Content-Encoding", "gzip");
-    std::string compressed_body = gzip::compress(response.getBody().c_str(), response.getBody().size());
-    response.setBody(compressed_body);
-    response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
 }
 
 int onyxup::HttpServer::writeToOutputBuffer(int fd, const char *data, size_t len) noexcept {
@@ -195,6 +113,16 @@ void onyxup::HttpServer::addRoute(const std::string &method, const char *regex,
 }
 
 void onyxup::HttpServer::handler_tasks(int id) {
+    
+    thread_local std::shared_ptr<PrepareHeadResponseChain> prepare_head_response_chain (new PrepareHeadResponseChain);
+    thread_local std::shared_ptr<PrepareRangeResponseChain> prepare_range_response_chain (new PrepareRangeResponseChain);
+    thread_local std::shared_ptr<PrepareCompressResponseChain> prepare_compress_response_chain( new PrepareCompressResponseChain(m_compress_static_resources));
+    thread_local std::shared_ptr<PrepareDefaultResponseChain> prepare_default_response_chain (new PrepareDefaultResponseChain);
+    
+    prepare_head_response_chain->setNextHandler(prepare_range_response_chain);
+    prepare_range_response_chain->setNextHandler(prepare_compress_response_chain);
+    prepare_compress_response_chain->setNextHandler(prepare_default_response_chain);
+    
     while (true) {
         PtrTask task = nullptr;
         if (id)
@@ -204,25 +132,10 @@ void onyxup::HttpServer::handler_tasks(int id) {
         if (task->getType() == EnumTaskType::LOCAL_TASK || task->getType() == EnumTaskType::STATIC_RESOURCES_TASK) {
             ResponseBase response = task->getHandler()(task->getRequest());
             task->setCode(response.getCode());
-            if (task->getRequest()->getMethod() == "HEAD") {
-                prepare_head_response(response);
-            } else {
-                bool client_support_gzip_encoding = check_client_support_gzip_encoding(task);
-                bool client_request_range = check_client_request_range(task);
-                if (client_request_range) {
-                    try {
-                        std::vector<std::pair<size_t, size_t>> ranges = utils::parseRangesRequest(task->getRequest()->getHeaderRef("range"), response.getBody().size() - 1);
-                        prepare_range_response(response, ranges);
-                    } catch (OnyxupException &ex) {
-                        prepare_range_not_satisfiable_response(response);
-                    }
-                } else if (response.isCompress() && client_support_gzip_encoding)
-                    prepare_compress_response(response);
-                else if (task->getType() == EnumTaskType::STATIC_RESOURCES_TASK && m_compress_static_resources)
-                    prepare_compress_response(response);
-                else
-                    prepare_default_response(response);
-            }
+            /*
+             * Запускаем цепочку обработчиков
+             */
+            prepare_head_response_chain->execute(task, response);
             task->setResponseData(response);
         }
         m_queue_performed_tasks.push(task);
@@ -239,7 +152,7 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
 
     m_path_to_configuration_file = "/var/onyxup/config.json";
     auto settings = parse_configuration_file(m_path_to_configuration_file);
-
+    
     if (settings.find("server") != settings.end()) {
         json json_server = settings["server"];
         try {
@@ -312,7 +225,6 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле statistics -> url должно быть строковым";
         }
     }
-
 
     m_buffers = new PtrBuffer[m_max_connection];
     m_requests = new PtrRequest[m_max_connection];
