@@ -1,5 +1,8 @@
 #include "response-base.h"
 
+std::string onyxup::ResponseBase::SERVER_IP = "";
+int onyxup::ResponseBase::SERVER_PORT = 80;
+
 std::string onyxup::ResponseBase::prepareResponse() {
     char buffer [4096];
     std::ostringstream os;
@@ -16,7 +19,7 @@ std::string onyxup::ResponseBase::prepareResponse() {
     memset(datetime, '\0', sizeof (datetime));
     strftime(datetime, sizeof (datetime), "%Y-%m-%d %H:%M:%S", &tm);
 
-    snprintf(buffer, sizeof(buffer), ResponseBase::HEADER, m_code, m_code_msg, VERSION_APPLICATION, datetime, m_mime, os.str().c_str());
+    snprintf(buffer, sizeof(buffer), ResponseBase::HEADER, m_code, m_code_msg, SERVER_IP.c_str(), SERVER_PORT, VERSION_APPLICATION, datetime, m_mime, os.str().c_str());
     m_header = std::string(buffer);
     return m_header + m_body;
 }

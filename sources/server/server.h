@@ -54,7 +54,7 @@
 #include "../services/statistics/StatisticsService.h"
 
 namespace onyxup {
-
+    
     template <bool useUtcTime = false>
     class Formatter{
     public:
@@ -131,6 +131,7 @@ namespace onyxup {
         PtrTask dispatcher(PtrRequest request) noexcept;
 
     public:
+        
         HttpServer(int port, size_t n);
 
         HttpServer(const HttpServer &) = delete;

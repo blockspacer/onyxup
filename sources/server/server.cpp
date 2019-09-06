@@ -290,6 +290,9 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
     event.events = EPOLLIN;
 
     epoll_ctl(m_e_poll_fd, EPOLL_CTL_ADD, m_fd, &event);
+    
+    ResponseBase::SERVER_PORT = port;
+    ResponseBase::SERVER_IP = std::string(inet_ntoa(server_addr.sin_addr));
 }
 
 void onyxup::HttpServer::run() noexcept {

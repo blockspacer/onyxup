@@ -12,10 +12,10 @@
 #include "../gzip/utils.hpp"
 #include "../gzip/version.hpp"
 #include "../version.h"
-
 #include "../plog/Log.h"
 
 namespace onyxup {
+    
     class ResponseBase {
     private:
 
@@ -29,9 +29,12 @@ namespace onyxup {
 
         std::string prepareResponse();
 
-        static constexpr const char *HEADER = "HTTP/1.1 %d %s\r\nServer: onyxup/%s\r\nConnection: Keep-Alive\r\nDate: %s\r\nAccept-Ranges: bytes\r\nContent-Type: %s%s\r\n\r\n";
+        static constexpr const char *HEADER = "HTTP/1.1 %d %s\r\nHost: %s:%d\r\nServer: onyxup/%s\r\nConnection: Keep-Alive\r\nDate: %s\r\nAccept-Ranges: bytes\r\nContent-Type: %s%s\r\n\r\n";
 
     public:
+        
+        static std::string SERVER_IP;
+        static int SERVER_PORT;
 
         ResponseBase(int code, const char *code_msg, const char *mime, const std::string &body, bool compress = false) : m_code(code), m_code_msg(code_msg), m_mime(mime), m_body(body), m_compress(compress){
         }
