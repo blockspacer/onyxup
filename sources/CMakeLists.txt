@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(onyxup)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "-O2")
 
 if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     message(FATAL_ERROR "BUILD ONLY LINUX !!!")
