@@ -1,6 +1,6 @@
 #include "task.h"
 
-onyxup::PtrTask onyxup::factoryTask() {
+onyxup::PtrTask onyxup::taskFactory() {
     PtrTask task = new (std::nothrow) Task;
     if (task) {
         task->setRequest(nullptr);

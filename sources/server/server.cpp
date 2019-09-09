@@ -9,20 +9,20 @@ static plog::ColorConsoleAppender<plog::TxtFormatter> consoleAppender;
 static plog::ColorConsoleAppender<onyxup::Formatter<>> consoleAppender;
 #endif
 
-bool onyxup::HttpServer::m_statistics_enable = false;
-std::string onyxup::HttpServer::m_statistics_url("^/onyxup-status-page$");
-std::string onyxup::HttpServer::m_path_to_static_resources;
-int onyxup::HttpServer::m_time_limit_request_seconds = 60;
-int onyxup::HttpServer::m_limit_local_tasks = 100;
-bool onyxup::HttpServer::m_compress_static_resources = false;
-bool onyxup::HttpServer::m_cached_static_resources = true;
-std::string onyxup::HttpServer::m_path_to_configuration_file;
-std::unordered_map<std::string, std::string> onyxup::HttpServer::m_map_mime_types;
-std::unordered_map<std::string, onyxup::ResponseBase> onyxup::HttpServer::m_map_cached_static_resources;
+bool onyxup::HttpServer::statisticsEnable = false;
+std::string onyxup::HttpServer::statisticsUrl("^/onyxup-status-page$");
+std::string onyxup::HttpServer::pathToStaticResources;
+int onyxup::HttpServer::timeLimitRequestSeconds = 60;
+int onyxup::HttpServer::limitLocalTasks = 100;
+bool onyxup::HttpServer::compressStaticResources = false;
+bool onyxup::HttpServer::cachedStaticResources = true;
+std::string onyxup::HttpServer::pathToConfigurationFile;
+std::unordered_map<std::string, std::string> onyxup::HttpServer::mimeTypesMap;
+std::unordered_map<std::string, onyxup::ResponseBase> onyxup::HttpServer::cachedStaticResourcesMap;
 
-std::unique_ptr<onyxup::StatisticsService> statistics_service(nullptr);
+std::unique_ptr<onyxup::StatisticsService> statisticsService(nullptr);
 
-static json parse_configuration_file(const std::string &filename) {
+static json ParseConfigurationFile(const std::string &filename) {
     json settings;
     try {
         std::string buffer;
@@ -38,7 +38,7 @@ static json parse_configuration_file(const std::string &filename) {
     return settings;
 }
 
-static int set_non_blocking_mode_socket(int fd) {
+static int SetNonBlockingModeSocket(int fd) {
     int flags;
     if (-1 == (flags = fcntl(fd, F_GETFL, 0)))
         flags = 0;
@@ -46,24 +46,24 @@ static int set_non_blocking_mode_socket(int fd) {
 }
 
 int onyxup::HttpServer::writeToOutputBuffer(int fd, const char *data, size_t len) noexcept {
-    PtrBuffer buffer = m_buffers[fd];
+    PtrBuffer buffer = buffers[fd];
     int code = ResponseState::RESPONSE_STATE_OK_CODE;
-    if (buffer->getOutBufferPosition() + len >= m_max_output_length_buffer) {
+    if (buffer->getPosOutputBuffer() + len >= maxOutputBUfferLength) {
         buffer->clear();
         Response413 response = Response413();
-        response.appendHeader("Content-Length",
-                              std::to_string(response.getBody().size()));
-        std::string str = response.to_string();
-        buffer->appendOutBuffer(str.c_str(), str.size());
+        response.addHeader("Content-Length",
+                           std::to_string(response.getBody().size()));
+        std::string str = response.toString();
+        buffer->addDataToOutputBuffer(str.c_str(), str.size());
         LOGD << "Превышен размер выходного буфера";
         code = ResponseState::RESPONSE_STATE_PAYLOAD_TOO_LARGE_CODE;
     } else
-        buffer->appendOutBuffer(data, len);
+        buffer->addDataToOutputBuffer(data, len);
     struct epoll_event event;
     event.data.fd = fd;
     event.events = EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
 
-    if (epoll_ctl(m_e_poll_fd, EPOLL_CTL_MOD, fd, &event) == -1) {
+    if (epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &event) == -1) {
         LOGE << "Не возможно модифицировать файловый дескриптор. Ошибка " << errno;
         closeAllSocketsAndClearData(fd);
         return -1;
@@ -72,12 +72,12 @@ int onyxup::HttpServer::writeToOutputBuffer(int fd, const char *data, size_t len
 }
 
 onyxup::PtrTask onyxup::HttpServer::dispatcher(PtrRequest request) noexcept {
-    PtrRequest req = request::factoryCopyRequest(request);
+    PtrRequest req = req::requestCopyFactory(request);
     if (req) {
-        PtrTask task = factoryTask();
+        PtrTask task = taskFactory();
         if (task) {
-            std::vector<Route>::iterator it = m_routes.begin();
-            while (it != m_routes.end()) {
+            std::vector<Route>::iterator it = routes.begin();
+            while (it != routes.end()) {
                 if (it->getMethod() == req->getMethod()) {
                     regmatch_t pm;
                     regex_t regex = it->getPregex();
@@ -102,47 +102,47 @@ onyxup::PtrTask onyxup::HttpServer::dispatcher(PtrRequest request) noexcept {
 void onyxup::HttpServer::addRoute(const std::string &method, const char *regex,
                                   std::function<ResponseBase(PtrCRequest request)> handler,
                                   EnumTaskType task_type) noexcept {
-    std::string method_to_upper_case(method);
-    std::transform(method_to_upper_case.begin(), method_to_upper_case.end(), method_to_upper_case.begin(),
-    [](unsigned char c) {
+    std::string methodToUpperCase(method);
+    std::transform(methodToUpperCase.begin(), methodToUpperCase.end(), methodToUpperCase.begin(),
+                   [](unsigned char c) {
         return std::toupper(c);
     });
-    m_routes.push_back(Route(method_to_upper_case, regex, handler, task_type));
-    if (method_to_upper_case == "GET")
-        m_routes.push_back(Route("HEAD", regex, handler, task_type));
+    routes.push_back(Route(methodToUpperCase, regex, handler, task_type));
+    if (methodToUpperCase == "GET")
+        routes.push_back(Route("HEAD", regex, handler, task_type));
 }
 
-void onyxup::HttpServer::handler_tasks(int id) {
+void onyxup::HttpServer::tasksHandler(int id) {
     
-    thread_local std::shared_ptr<PrepareHeadResponseChain> prepare_head_response_chain (new PrepareHeadResponseChain);
-    thread_local std::shared_ptr<PrepareRangeResponseChain> prepare_range_response_chain (new PrepareRangeResponseChain);
-    thread_local std::shared_ptr<PrepareCompressResponseChain> prepare_compress_response_chain( new PrepareCompressResponseChain(m_compress_static_resources));
-    thread_local std::shared_ptr<PrepareDefaultResponseChain> prepare_default_response_chain (new PrepareDefaultResponseChain);
+    thread_local std::shared_ptr<ResponsePrepareHeadChain> responsePrepareHeadChain (new ResponsePrepareHeadChain);
+    thread_local std::shared_ptr<ResponsePrepareRangeChain> responsePrepareRangeChain (new ResponsePrepareRangeChain);
+    thread_local std::shared_ptr<ResponsePrepareCompressChain> responsePrepareCompressChain(new ResponsePrepareCompressChain(compressStaticResources));
+    thread_local std::shared_ptr<ResponsePrepareDefaultChain> responsePrepareDefaultChain (new ResponsePrepareDefaultChain);
     
-    prepare_head_response_chain->setNextHandler(prepare_range_response_chain);
-    prepare_range_response_chain->setNextHandler(prepare_compress_response_chain);
-    prepare_compress_response_chain->setNextHandler(prepare_default_response_chain);
+    responsePrepareHeadChain->setNextHandler(responsePrepareRangeChain);
+    responsePrepareRangeChain->setNextHandler(responsePrepareCompressChain);
+    responsePrepareCompressChain->setNextHandler(responsePrepareDefaultChain);
     
     while (true) {
         PtrTask task = nullptr;
         if (id)
-            m_queue_tasks.wait_and_pop(task);
+            tasksQueue.wait_and_pop(task);
         else
-            m_queue_static_tasks.wait_and_pop(task);
+            staticTasksQueue.wait_and_pop(task);
         if (task->getType() == EnumTaskType::LOCAL_TASK || task->getType() == EnumTaskType::STATIC_RESOURCES_TASK) {
             ResponseBase response = task->getHandler()(task->getRequest());
             task->setCode(response.getCode());
             /*
              * Запускаем цепочку обработчиков
              */
-            prepare_head_response_chain->execute(task, response);
+            responsePrepareHeadChain->execute(task, response);
             task->setResponseData(response);
         }
-        m_queue_performed_tasks.push(task);
+        performedTasksQueue.push(task);
     }
 }
 
-onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
+onyxup::HttpServer::HttpServer(int port, size_t n) : numberThreads(n) {
 
 #ifdef DEBUG_MODE
     plog::init(plog::debug, &consoleAppender);
@@ -150,44 +150,44 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
     plog::init(plog::info, &consoleAppender);
 #endif
 
-    m_path_to_configuration_file = "/var/onyxup/config.json";
-    auto settings = parse_configuration_file(m_path_to_configuration_file);
+    pathToConfigurationFile = "/var/onyxup/config.json";
+    auto settings = ParseConfigurationFile(pathToConfigurationFile);
     
     if (settings.find("server") != settings.end()) {
         json json_server = settings["server"];
         try {
             if (json_server.find("threads") != json_server.end())
-                m_number_threads = settings["server"]["threads"].get<int>();
+                numberThreads = settings["server"]["threads"].get<int>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле server -> threads должно быть целым";
         }
         try {
             if (json_server.find("max_connection") != json_server.end())
-                m_max_connection = settings["server"]["max_connection"].get<int>();
+                maxConnection = settings["server"]["max_connection"].get<int>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле server -> max_connection должно быть целым";
         }
         try {
             if (json_server.find("max_input_length_buffer") != json_server.end())
-                m_max_input_length_buffer = settings["server"]["max_input_length_buffer"].get<int>();
+                maxInputBufferLength = settings["server"]["max_input_length_buffer"].get<int>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле server -> max_input_length_buffer должно быть целым";
         }
         try {
             if (json_server.find("max_output_length_buffer") != json_server.end())
-                m_max_output_length_buffer = settings["server"]["max_output_length_buffer"].get<int>();
+                maxOutputBUfferLength = settings["server"]["max_output_length_buffer"].get<int>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле server -> max_output_length_buffer должно быть целым";
         }
         try {
             if (json_server.find("time_limit_request_seconds") != json_server.end())
-                m_time_limit_request_seconds = settings["server"]["time_limit_request_seconds"].get<int>();
+                timeLimitRequestSeconds = settings["server"]["time_limit_request_seconds"].get<int>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле server -> time_limit_request_seconds должно быть целым";
         }
         try {
             if (json_server.find("limit_local_tasks") != json_server.end())
-                m_limit_local_tasks = settings["server"]["limit_local_tasks"].get<int>();
+                limitLocalTasks = settings["server"]["limit_local_tasks"].get<int>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле server -> limit_local_tasks должно быть целым";
         }
@@ -196,70 +196,70 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
         json json_static_resources = settings["static-resources"];
         try {
             if (json_static_resources.find("directory") != json_static_resources.end())
-                m_path_to_static_resources = settings["static-resources"]["directory"].get<std::string>();
+                pathToStaticResources = settings["static-resources"]["directory"].get<std::string>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле static-resources -> directory должно быть строковым";
         }
         try {
             if (json_static_resources.find("compress") != json_static_resources.end())
-                m_compress_static_resources = settings["static-resources"]["compress"].get<bool>();
+                compressStaticResources = settings["static-resources"]["compress"].get<bool>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле static-resources -> compress должно быть булевым";
         }
         try {
             if (json_static_resources.find("cache") != json_static_resources.end())
-                m_cached_static_resources = settings["static-resources"]["cache"].get<bool>();
+                cachedStaticResources = settings["static-resources"]["cache"].get<bool>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле static-resources -> cache должно быть булевым";
         }
     }
     if (settings.find("statistics") != settings.end()) {
         try {
-            m_statistics_enable = settings["enable"].get<bool>();
+            statisticsEnable = settings["enable"].get<bool>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле statistics -> enable должно быть булевым";
         }
         try {
-            m_statistics_url = settings["url"].get<std::string>();
+            statisticsUrl = settings["url"].get<std::string>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле statistics -> url должно быть строковым";
         }
     }
 
-    m_buffers = new PtrBuffer[m_max_connection];
-    m_requests = new PtrRequest[m_max_connection];
-    statistics_service.reset(new StatisticsService(m_buffers, m_requests, m_max_connection));
-    m_alive_sockets.resize(m_max_connection);
-    for (size_t i = 0; i < m_max_connection; i++) {
-        m_buffers[i] = nullptr;
-        m_requests[i] = nullptr;
-        m_alive_sockets[i] = std::chrono::steady_clock::now();
+    buffers = new PtrBuffer[maxConnection];
+    requests = new PtrRequest[maxConnection];
+    statisticsService.reset(new StatisticsService(buffers, requests, maxConnection));
+    aliveSockets.resize(maxConnection);
+    for (size_t i = 0; i < maxConnection; i++) {
+        buffers[i] = nullptr;
+        requests[i] = nullptr;
+        aliveSockets[i] = std::chrono::steady_clock::now();
     }
 
-    m_map_mime_types = MimeType::generateMimeTypeMap();
-    if (m_number_threads < 2)
-        m_number_threads = 2;
+    mimeTypesMap = MimeType::generateMimeTypesMap();
+    if (numberThreads < 2)
+        numberThreads = 2;
 
-    m_pool_threads.resize(m_number_threads);
+    threadsPool.resize(numberThreads);
 
-    for (size_t i = 0; i < m_number_threads; i++) {
-        std::thread t(&HttpServer::handler_tasks, this, i);
-        m_pool_threads[i] = std::move(t);
+    for (size_t i = 0; i < numberThreads; i++) {
+        std::thread t(&HttpServer::tasksHandler, this, i);
+        threadsPool[i] = std::move(t);
     }
 
     struct sockaddr_in server_addr;
-    m_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (m_fd < 0) {
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
         LOGE << "Не возможно создать серверный сокет";
         throw OnyxupException("Не возможно создать серверный сокет");
     }
     int enable = 1;
-    if (setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
-        close(m_fd);
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+        close(fd);
         LOGE << "Не возможно создать серверный сокет. Ошибка " << errno;
         throw OnyxupException("Не возможно создать серверный сокет");
     }
-    if (set_non_blocking_mode_socket(m_fd) == -1) {
+    if (SetNonBlockingModeSocket(fd) == -1) {
         LOGE << "Не возможно создать серверный сокет. Ошибка " << errno;
         throw OnyxupException("Не возможно создать серверный сокет");
     }
@@ -267,29 +267,29 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
     server_addr.sin_addr.s_addr = inet_addr("0.0.0.0");
     server_addr.sin_port = htons(port);
 
-    if (bind(m_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
-        close(m_fd);
+    if (bind(fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+        close(fd);
         LOGE << "Не возможно выполнить операцию bind. Ошибка " << errno;
         throw OnyxupException("Не возможно создать серверный сокет");
     }
 
-    if (listen(m_fd, SOMAXCONN) < 0) {
+    if (listen(fd, SOMAXCONN) < 0) {
         LOGE << "Не возможно выполнить операцию listen. Ошибка " << errno;
         throw OnyxupException("Не возможно создать серверный сокет");
     };
 
-    m_e_poll_fd = epoll_create1(0);
-    if (m_e_poll_fd == -1) {
-        close(m_fd);
+    epollFd = epoll_create1(0);
+    if (epollFd == -1) {
+        close(fd);
         LOGE << "Не возможно создать epoll. Ошибка " << errno;
         throw OnyxupException("Не возможно создать серверный сокет");
     }
 
     struct epoll_event event;
-    event.data.fd = m_fd;
+    event.data.fd = fd;
     event.events = EPOLLIN;
 
-    epoll_ctl(m_e_poll_fd, EPOLL_CTL_ADD, m_fd, &event);
+    epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &event);
     
     ResponseBase::SERVER_PORT = port;
     ResponseBase::SERVER_IP = std::string(inet_ntoa(server_addr.sin_addr));
@@ -298,15 +298,15 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : m_number_threads(n) {
 void onyxup::HttpServer::run() noexcept {
     sockaddr_in peer_addr;
     int address_length = sizeof(peer_addr);
-    struct epoll_event events[m_max_events_epoll];
+    struct epoll_event events[maxEventsEpoll];
     struct epoll_event event;
 
     /*
      * Подключение сбора статистики
      */
-    if (m_statistics_enable) {
-        this->addRoute("GET", m_statistics_url.c_str(), [](PtrCRequest request) -> ResponseBase {
-            return statistics_service->callback(request);
+    if (statisticsEnable) {
+        this->addRoute("GET", statisticsUrl.c_str(), [](PtrCRequest request) -> ResponseBase {
+            return statisticsService->callback(request);
         }, EnumTaskType::LOCAL_TASK);
     }
 
@@ -314,37 +314,37 @@ void onyxup::HttpServer::run() noexcept {
         static size_t counter_check_limit_time_request = 0;
         std::chrono::time_point<std::chrono::steady_clock> now = std::chrono::steady_clock::now();
 
-        if (m_statistics_enable)
-            statistics_service->setCurrentNumberTasks(m_queue_tasks.size() + m_queue_static_tasks.size());
+        if (statisticsEnable)
+            statisticsService->setCurrentNumberTasks(tasksQueue.size() + staticTasksQueue.size());
         for (size_t i = counter_check_limit_time_request;
-                i < m_max_connection && i < counter_check_limit_time_request + 100; i++) {
-            if (m_requests[i]) {
-                if (std::chrono::duration_cast<std::chrono::seconds>(now - m_alive_sockets[i]).count() >
-                        HttpServer::m_time_limit_request_seconds) {
-                    if (m_requests[i]->getFullURIRef().empty())
-                        closeAllSocketsAndClearData(m_requests[i]->getFD());
+             i < maxConnection && i < counter_check_limit_time_request + 100; i++) {
+            if (requests[i]) {
+                if (std::chrono::duration_cast<std::chrono::seconds>(now - aliveSockets[i]).count() >
+                    HttpServer::timeLimitRequestSeconds) {
+                    if (requests[i]->getFullURIRef().empty())
+                        closeAllSocketsAndClearData(requests[i]->getFD());
                     else {
                         ResponseBase response = std::move(onyxup::Response408());
-                        response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
-                        std::string str = response.to_string();
-                        writeToOutputBuffer(m_requests[i]->getFD(), str.c_str(), str.length());
-                        m_requests[i]->setClosingConnect(true);
-                        m_alive_sockets[m_requests[i]->getFD()] = std::chrono::steady_clock::now();
-                        LOGI << m_requests[i]->getMethod() << " " << m_requests[i]->getFullURIRef() << " "
+                        response.addHeader("Content-Length", std::to_string(response.getBody().size()));
+                        std::string str = response.toString();
+                        writeToOutputBuffer(requests[i]->getFD(), str.c_str(), str.length());
+                        requests[i]->setClosingConnect(true);
+                        aliveSockets[requests[i]->getFD()] = std::chrono::steady_clock::now();
+                        LOGI << requests[i]->getMethod() << " " << requests[i]->getFullURIRef() << " "
                              << ResponseState::RESPONSE_STATE_METHOD_REQUEST_TIMEOUT_CODE;
                     }
                 }
             }
         }
-        counter_check_limit_time_request = (counter_check_limit_time_request + 100) % m_max_connection;
+        counter_check_limit_time_request = (counter_check_limit_time_request + 100) % maxConnection;
 
-        while (!m_queue_performed_tasks.empty()) {
+        while (!performedTasksQueue.empty()) {
             PtrTask task = nullptr;
-            if (m_queue_performed_tasks.try_pop(task)) {
+            if (performedTasksQueue.try_pop(task)) {
                 /*
                  * Проверяем что данный сокет еще жив
                 */
-                if (task->getTimePoint() == m_alive_sockets[task->getFD()]) {
+                if (task->getTimePoint() == aliveSockets[task->getFD()]) {
                     int code = writeToOutputBuffer(task->getFD(), task->getResponseData().c_str(),
                                                    task->getResponseData().size());
                     if (code == ResponseState::RESPONSE_STATE_PAYLOAD_TOO_LARGE_CODE)
@@ -356,15 +356,15 @@ void onyxup::HttpServer::run() noexcept {
                 delete task;
             }
         }
-        int fds = epoll_wait(m_e_poll_fd, events, m_max_events_epoll, 100);
+        int fds = epoll_wait(epollFd, events, maxEventsEpoll, 100);
         for (int i = 0; i < fds; i++) {
             if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) || (events[i].events & EPOLLRDHUP)) {
                 closeAllSocketsAndClearData(events[i].data.fd);
                 continue;
             }
-            if (events[i].data.fd == m_fd) {
-                int conn_sock = accept(m_fd, (struct sockaddr *) &peer_addr, (socklen_t *) &address_length);
-                if (conn_sock > (int) m_max_connection - 1) {
+            if (events[i].data.fd == fd) {
+                int conn_sock = accept(fd, (struct sockaddr *) &peer_addr, (socklen_t *) &address_length);
+                if (conn_sock > (int) maxConnection - 1) {
                     closeSocket(conn_sock);
                     LOGE << "Превышено максимальное количество соединений на сервере";
                     continue;
@@ -374,47 +374,47 @@ void onyxup::HttpServer::run() noexcept {
                     LOGE << "Не возможно принять соединение на сервере. Ошибка " << errno;
                     continue;
                 }
-                if (set_non_blocking_mode_socket(conn_sock) == -1) {
+                if (SetNonBlockingModeSocket(conn_sock) == -1) {
                     closeSocket(conn_sock);
                     LOGE << "Не возможно перевести сокет в неблокирующий режим. Ошибка " << errno;
                     continue;
                 }
                 event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
                 event.data.fd = conn_sock;
-                if (epoll_ctl(m_e_poll_fd, EPOLL_CTL_ADD, conn_sock, &event) == -1) {
+                if (epoll_ctl(epollFd, EPOLL_CTL_ADD, conn_sock, &event) == -1) {
                     closeSocket(conn_sock);
                     LOGE << "Не возможно добавить файловый дескриптор в epoll. Ошибка " << errno;
                     continue;
                 }
 
-                if (m_statistics_enable)
-                    statistics_service->addTotalNumberConnectionsAccepted();
+                if (statisticsEnable)
+                    statisticsService->addTotalNumberConnectionsAccepted();
 
-                m_alive_sockets[conn_sock] = std::chrono::steady_clock::now();
+                aliveSockets[conn_sock] = std::chrono::steady_clock::now();
 
                 /*
                  * Подготавливаем входной и выходной буфер, выделяем память
                  */
-                m_buffers[conn_sock] = buffer::factoryBuffer(m_max_input_length_buffer, m_max_output_length_buffer);
-                if (m_buffers[conn_sock] == nullptr) {
+                buffers[conn_sock] = buffer::bufferFactory(maxInputBufferLength, maxOutputBUfferLength);
+                if (buffers[conn_sock] == nullptr) {
                     LOGE << "Ошибка выделение памяти";
                     closeSocket(conn_sock);
                     continue;
                 }
 
                 /*
-                 * Подготавливаем request
+                 * Подготавливаем req
                  */
 
-                m_requests[conn_sock] = request::factoryRequest();
-                if (m_requests[conn_sock] == nullptr) {
+                requests[conn_sock] = req::requestFactory();
+                if (requests[conn_sock] == nullptr) {
                     closeSocket(conn_sock);
-                    delete m_buffers[conn_sock];
-                    m_buffers[conn_sock] = nullptr;
+                    delete buffers[conn_sock];
+                    buffers[conn_sock] = nullptr;
                     continue;
                 }
-                m_requests[conn_sock]->setFD(conn_sock);
-                m_requests[conn_sock]->setMaxOutputLengthBuffer(m_max_output_length_buffer);
+                requests[conn_sock]->setFD(conn_sock);
+                requests[conn_sock]->setMaxOutputLengthBuffer(maxOutputBUfferLength);
             } else {
                 if (events[i].events & EPOLLIN) {
                     char data[4096];
@@ -430,20 +430,20 @@ void onyxup::HttpServer::run() noexcept {
                         closeAllSocketsAndClearData(events[i].data.fd);
                         continue;
                     }
-                    PtrBuffer buffer = m_buffers[events[i].data.fd];
-                    if (buffer->getInBufferPosition() + res >= m_max_input_length_buffer) {
+                    PtrBuffer buffer = buffers[events[i].data.fd];
+                    if (buffer->getPosInputBuffer() + res >= maxInputBufferLength) {
                         LOGD << "Превышен размер входного буфера";
 
                         Response413 response = Response413();
-                        response.appendHeader("Content-Length",
-                                              std::to_string(response.getBody().size()));
-                        std::string str = response.to_string();
+                        response.addHeader("Content-Length",
+                                           std::to_string(response.getBody().size()));
+                        std::string str = response.toString();
                         writeToOutputBuffer(events[i].data.fd, str.c_str(), str.length());
-                        m_requests[events[i].data.fd]->setClosingConnect(true);
-                        m_requests[events[i].data.fd]->setHeaderAccept(true);
+                        requests[events[i].data.fd]->setClosingConnect(true);
+                        requests[events[i].data.fd]->setHeaderAccept(true);
                         continue;
                     }
-                    buffer->appendInBuffer(data, res);
+                    buffer->addDataToInputBuffer(data, res);
                     /*
                      * Парсим http запрос
                      */
@@ -453,13 +453,13 @@ void onyxup::HttpServer::run() noexcept {
                     size_t method_len, uri_len;
                     int version;
                     size_t num_headers = sizeof(headers) / sizeof(headers[0]);
-                    int parse_http_result = phr_parse_request(buffer->getInBuffer(),
-                                            buffer->getInBufferPosition() + 1,
+                    int parse_http_result = phr_parse_request(buffer->getInputBuffer(),
+                                                              buffer->getPosInputBuffer() + 1,
                                             &method,
                                             &method_len, &uri, &uri_len, &version, headers,
                                             &num_headers, 0);
                     if (parse_http_result > 0) {
-                        PtrRequest request = m_requests[events[i].data.fd];
+                        PtrRequest request = requests[events[i].data.fd];
 
                         if (!request->isHeaderAccept()) {
                             request->setHeaderAccept(true);
@@ -470,7 +470,7 @@ void onyxup::HttpServer::run() noexcept {
                                 std::string key(headers[j].name, (int) headers[j].name_len);
                                 std::transform(key.begin(), key.end(), key.begin(), tolower);
                                 std::string value(headers[j].value, (int) headers[j].value_len);
-                                request->appendHeader(key, value);
+                                request->addHeader(key, value);
                             }
                             /*
                              * Получаем параметры строки запроса
@@ -496,9 +496,9 @@ void onyxup::HttpServer::run() noexcept {
                             try {
                                 std::string header_content_length = request->getHeaderRef("content-length");
                                 int len = atoi(header_content_length.c_str());
-                                if (len && buffer->getInBufferPosition() == (parse_http_result + len)) {
+                                if (len && buffer->getPosInputBuffer() == (parse_http_result + len)) {
                                     request->setBodyAccept(true);
-                                    request->setBody(buffer->getInBuffer() + parse_http_result, len);
+                                    request->setBody(buffer->getInputBuffer() + parse_http_result, len);
                                 }
                             } catch (std::out_of_range &ex) {
                                 closeAllSocketsAndClearData(events[i].data.fd);
@@ -512,7 +512,7 @@ void onyxup::HttpServer::run() noexcept {
                             struct epoll_event event;
                             event.data.fd = events[i].data.fd;
                             event.events = EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-                            if (epoll_ctl(m_e_poll_fd, EPOLL_CTL_MOD, events[i].data.fd, &event) == -1) {
+                            if (epoll_ctl(epollFd, EPOLL_CTL_MOD, events[i].data.fd, &event) == -1) {
                                 LOGE << "Не возможно модифицировать файловый дескриптор в epoll. Ошибка " << errno;
                                 closeAllSocketsAndClearData(events[i].data.fd);
                                 continue;
@@ -525,16 +525,16 @@ void onyxup::HttpServer::run() noexcept {
                         PtrTask task = dispatcher(request);
                         if (task) {
                             task->setFD(events[i].data.fd);
-                            task->setTimePoint(m_alive_sockets[events[i].data.fd]);
+                            task->setTimePoint(aliveSockets[events[i].data.fd]);
                             /*
                              * В зависимости от типа задачи направляем в соответствующий поток
                              */
                             if (task->getType() == EnumTaskType::LOCAL_TASK) {
-                                if (m_queue_tasks.size() > HttpServer::m_limit_local_tasks) {
+                                if (tasksQueue.size() > HttpServer::limitLocalTasks) {
                                     ResponseBase response = onyxup::Response503();
-                                    response.appendHeader("Content-Length",
-                                                          std::to_string(response.getBody().size()));
-                                    std::string str = response.to_string();
+                                    response.addHeader("Content-Length",
+                                                       std::to_string(response.getBody().size()));
+                                    std::string str = response.toString();
                                     writeToOutputBuffer(events[i].data.fd, str.c_str(), str.size());
                                     LOGI << request->getMethod() << " " << request->getFullURIRef() << " "
                                          << ResponseState::RESPONSE_STATE_SERVICE_UNAVAILABLE_CODE;
@@ -548,15 +548,15 @@ void onyxup::HttpServer::run() noexcept {
                                 delete task;
                                 closeAllSocketsAndClearData(events[i].data.fd);
                             }
-                            statistics_service->addTotalNumberClientRequests();
+                            statisticsService->addTotalNumberClientRequests();
                         } else {
                             ResponseBase response = onyxup::Response404();
-                            response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
-                            std::string str = response.to_string();
+                            response.addHeader("Content-Length", std::to_string(response.getBody().size()));
+                            std::string str = response.toString();
                             writeToOutputBuffer(events[i].data.fd, str.c_str(), str.size());
                             LOGI << request->getMethod() << " " << request->getFullURIRef() << " "
                                  << ResponseState::RESPONSE_STATE_NOT_FOUND_CODE;
-                            statistics_service->addTotalNumberClientRequests();
+                            statisticsService->addTotalNumberClientRequests();
                         }
                         continue;
                     } else if (parse_http_result == -2) {
@@ -567,36 +567,36 @@ void onyxup::HttpServer::run() noexcept {
                         continue;
                     }
                 }
-                if (events[i].events & EPOLLOUT && m_buffers[events[i].data.fd]->getBytesToSend() > 0 &&
-                        m_requests[events[i].data.fd]->isHeaderAccept()) {
-                    if (m_requests[events[i].data.fd]->isBodyExists() &&
-                            !m_requests[events[i].data.fd]->isBodyAccept())
+                if (events[i].events & EPOLLOUT && buffers[events[i].data.fd]->getBytesToSend() > 0 &&
+                    requests[events[i].data.fd]->isHeaderAccept()) {
+                    if (requests[events[i].data.fd]->isBodyExists() &&
+                        !requests[events[i].data.fd]->isBodyAccept())
                         continue;
-                    PtrBuffer buffer = m_buffers[events[i].data.fd];
-                    int res = send(events[i].data.fd, buffer->getOutBuffer() + buffer->getOutBufferPosition(),
+                    PtrBuffer buffer = buffers[events[i].data.fd];
+                    int res = send(events[i].data.fd, buffer->getOutputBuffer() + buffer->getPosOutputBuffer(),
                                    buffer->getBytesToSend(), 0);
                     if (res == -1) {
                         closeAllSocketsAndClearData(events[i].data.fd);
                         continue;
                     }
                     buffer->setBytesToSend(buffer->getBytesToSend() - res);
-                    buffer->setOutBufferPosition(buffer->getOutBufferPosition() + res);
+                    buffer->setPosOutputBuffer(buffer->getPosOutputBuffer() + res);
                     if (buffer->getBytesToSend() == 0) {
                         try {
-                            if (m_requests[events[i].data.fd]->isClosingConnect()) {
+                            if (requests[events[i].data.fd]->isClosingConnect()) {
                                 closeAllSocketsAndClearData(events[i].data.fd);
-                            } else if (m_requests[events[i].data.fd]->getHeader("connection") == "Keep-Alive") {
-                                m_buffers[events[i].data.fd]->clear();
-                                m_requests[events[i].data.fd]->clear();
+                            } else if (requests[events[i].data.fd]->getHeader("connection") == "Keep-Alive") {
+                                buffers[events[i].data.fd]->clear();
+                                requests[events[i].data.fd]->clear();
                                 struct epoll_event event;
                                 event.data.fd = events[i].data.fd;
                                 event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-                                if (epoll_ctl(m_e_poll_fd, EPOLL_CTL_MOD, events[i].data.fd, &event) == -1) {
+                                if (epoll_ctl(epollFd, EPOLL_CTL_MOD, events[i].data.fd, &event) == -1) {
                                     closeAllSocketsAndClearData(events[i].data.fd);
                                     LOGE << "Не возможно модифицировать файловый дескриптор в epoll. Ошибка " << errno;
                                     continue;
                                 }
-                                m_alive_sockets[events[i].data.fd] = std::chrono::steady_clock::now();
+                                aliveSockets[events[i].data.fd] = std::chrono::steady_clock::now();
                             } else
                                 closeAllSocketsAndClearData(events[i].data.fd);
                         } catch (std::out_of_range &ex) {
@@ -610,18 +610,18 @@ void onyxup::HttpServer::run() noexcept {
 }
 
 onyxup::HttpServer::~HttpServer() {
-    for (size_t i = 0; i < m_number_threads; i++)
-        m_pool_threads[i].join();
+    for (size_t i = 0; i < numberThreads; i++)
+        threadsPool[i].join();
 
-    for (size_t i = 0; i < m_max_connection; i++)
+    for (size_t i = 0; i < maxConnection; i++)
         closeAllSocketsAndClearData(i);
-    shutdown(m_fd, SHUT_RD);
-    close(m_fd);
-    delete[] m_buffers;
-    delete[] m_requests;
+    shutdown(fd, SHUT_RD);
+    close(fd);
+    delete[] buffers;
+    delete[] requests;
 }
 
-onyxup::ResponseBase onyxup::HttpServer::default_callback_static_resources(onyxup::PtrCRequest request) {
+onyxup::ResponseBase onyxup::HttpServer::defaultCallbackStaticResources(onyxup::PtrCRequest request) {
     /*
      * Определяем content type по расширению файла
      */
@@ -633,22 +633,22 @@ onyxup::ResponseBase onyxup::HttpServer::default_callback_static_resources(onyxu
         return onyxup::Response404();
     }
     strcat(content_type_key, token_dot + 1);
-    std::unordered_map<std::string, std::string>::iterator it = m_map_mime_types.find(
+    std::unordered_map<std::string, std::string>::iterator it = mimeTypesMap.find(
                 content_type_key);
-    if (it == m_map_mime_types.end()) {
+    if (it == mimeTypesMap.end()) {
         return onyxup::Response404();
     }
 
     /*
      * Проверяем кеш иначе получаем ресурс и заносим в кеш
      */
-    if (m_cached_static_resources) {
-        std::unordered_map<std::string, ResponseBase>::iterator iter = m_map_cached_static_resources.find(
+    if (cachedStaticResources) {
+        std::unordered_map<std::string, ResponseBase>::iterator iter = cachedStaticResourcesMap.find(
                     request->getURIRef());
-        if (iter == m_map_cached_static_resources.end()) {
+        if (iter == cachedStaticResourcesMap.end()) {
             char path_to_file[120];
             snprintf(path_to_file, sizeof(path_to_file), "%s%s",
-                     m_path_to_static_resources.c_str(), request->getURIRef().c_str());
+                     pathToStaticResources.c_str(), request->getURIRef().c_str());
 
             std::ifstream file(path_to_file, std::ios::in | std::ifstream::binary);
             if (file.good()) {
@@ -660,7 +660,7 @@ onyxup::ResponseBase onyxup::HttpServer::default_callback_static_resources(onyxu
                 /*
                  * Отправляем данные в кеш
                  */
-                m_map_cached_static_resources[request->getURIRef()] = response;
+                cachedStaticResourcesMap[request->getURIRef()] = response;
                 return response;
             } else {
                 return onyxup::Response404();
@@ -669,13 +669,13 @@ onyxup::ResponseBase onyxup::HttpServer::default_callback_static_resources(onyxu
             /*
              * Берем из кеша
              */
-            ResponseBase response = m_map_cached_static_resources[request->getURIRef()];
+            ResponseBase response = cachedStaticResourcesMap[request->getURIRef()];
             return response;
         }
     } else {
         char path_to_file[120];
         snprintf(path_to_file, sizeof(path_to_file), "%s%s",
-                 m_path_to_static_resources.c_str(), request->getURIRef().c_str());
+                 pathToStaticResources.c_str(), request->getURIRef().c_str());
 
         std::ifstream file(path_to_file, std::ios::in | std::ifstream::binary);
         if (file.good()) {
@@ -687,7 +687,7 @@ onyxup::ResponseBase onyxup::HttpServer::default_callback_static_resources(onyxu
             /*
              * Отправляем данные в кеш
              */
-            m_map_cached_static_resources[request->getURIRef()] = response;
+            cachedStaticResourcesMap[request->getURIRef()] = response;
             return response;
         } else {
             return onyxup::Response404();
@@ -697,52 +697,52 @@ onyxup::ResponseBase onyxup::HttpServer::default_callback_static_resources(onyxu
 }
 
 int onyxup::HttpServer::getTimeLimitRequestSeconds() {
-    return m_time_limit_request_seconds;
+    return timeLimitRequestSeconds;
 }
 
 void onyxup::HttpServer::setTimeLimitRequestSeconds(int limit) {
-    m_time_limit_request_seconds = limit;
+    timeLimitRequestSeconds = limit;
 }
 
 int onyxup::HttpServer::getLimitLocalTasks() {
-    return m_limit_local_tasks;
+    return limitLocalTasks;
 }
 
 void onyxup::HttpServer::setLimitLocalTasks(int limit) {
-    m_limit_local_tasks = limit;
+    limitLocalTasks = limit;
 }
 
 void onyxup::HttpServer::setCachedStaticResources(bool flag) {
-    m_cached_static_resources = flag;
+    cachedStaticResources = flag;
 }
 
 void onyxup::HttpServer::setPathToConfigurationFile(const std::string &file) {
-    m_path_to_configuration_file = file;
+    pathToConfigurationFile = file;
 }
 
 void onyxup::HttpServer::setStatisticsEnable(bool enable) {
-    m_statistics_enable = enable;
+    statisticsEnable = enable;
 }
 
 void onyxup::HttpServer::setStatisticsUrl(const std::string &url) {
-    m_statistics_url = url;
+    statisticsUrl = url;
 }
 
 void onyxup::HttpServer::closeAllSocketsAndClearData(int fd) {
     shutdown(fd, SHUT_RDWR);
     close(fd);
-    delete m_buffers[fd];
-    delete m_requests[fd];
-    m_alive_sockets[fd] = std::chrono::steady_clock::now();
-    m_buffers[fd] = nullptr;
-    m_requests[fd] = nullptr;
-    statistics_service->addTotalNumberConnectionsProcessed();
+    delete buffers[fd];
+    delete requests[fd];
+    aliveSockets[fd] = std::chrono::steady_clock::now();
+    buffers[fd] = nullptr;
+    requests[fd] = nullptr;
+    statisticsService->addTotalNumberConnectionsProcessed();
 }
 
-void onyxup::HttpServer::setMaxInputLengthBuffer(size_t length) {
-    m_max_input_length_buffer = length;
+void onyxup::HttpServer::setMaxInputBufferLength(size_t len) {
+    maxInputBufferLength = len;
 }
 
-void onyxup::HttpServer::setMaxOutputLengthBuffer(size_t length) {
-    m_max_output_length_buffer = length;
+void onyxup::HttpServer::setMaxOutputBufferLength(size_t len) {
+    maxOutputBUfferLength = len;
 }

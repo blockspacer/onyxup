@@ -7,14 +7,14 @@ namespace onyxup {
 
     class OnyxupException : public std::exception {
     private:
-        std::string msg_;
+        std::string msg;
     public:
 
-        explicit OnyxupException(const std::string & msg_) : exception(), msg_(msg_) {
+        explicit OnyxupException(const std::string & msg) : exception(), msg(msg) {
         }
 
         virtual const char* what() const noexcept override {
-            return msg_.c_str();
+            return msg.c_str();
         }
 
     };

@@ -11,29 +11,29 @@ namespace onyxup {
     using PtrRequest = Request *;
     using PtrCRequest = const Request * ;
     
-    namespace request {
-        PtrRequest factoryRequest();
-        PtrRequest factoryCopyRequest(PtrRequest);
+    namespace req {
+        PtrRequest requestFactory();
+        PtrRequest requestCopyFactory(PtrRequest);
     }
     
     class Request {
-        friend PtrRequest request::factoryRequest();
-        friend PtrRequest request::factoryCopyRequest(PtrRequest);
+        friend PtrRequest req::requestFactory();
+        friend PtrRequest req::requestCopyFactory(PtrRequest);
     private:
-        int m_fd;
-        std::string m_full_uri;
-        std::string m_uri;
-        std::string m_method;
-        std::string m_body;
-        std::unordered_map<std::string, std::string> m_headers;
-        std::unordered_map<std::string, std::string> m_params;
+        int fd;
+        std::string fullUri;
+        std::string uri;
+        std::string method;
+        std::string body;
+        std::unordered_map<std::string, std::string> headers;
+        std::unordered_map<std::string, std::string> params;
         
-        bool m_header_accept;
-        bool m_body_accept;
-        bool m_body_exists;
-        bool m_closing_connect;
+        bool headerAccept;
+        bool bodyAccept;
+        bool bodyExists;
+        bool closingConnect;
         
-        size_t m_max_output_length_buffer;
+        size_t maxOutputBufferLength;
         
         Request(){};
     public:
@@ -42,96 +42,96 @@ namespace onyxup {
 
         void clear();
         
-        inline void setFD(int fd) {
-            m_fd = fd;
+        inline void setFD(int fd_) {
+            fd = fd_;
         }
         
         inline bool isHeaderAccept() const {
-            return m_header_accept;
+            return headerAccept;
         }
 
-        inline void setHeaderAccept(bool header_accept) {
-            m_header_accept = header_accept;
+        inline void setHeaderAccept(bool accept) {
+            headerAccept = accept;
         }
         
-        inline void setFullURI(const char * uri, size_t size) {
-            m_full_uri = std::string(uri, size);
+        inline void setFullURI(const char * uri, size_t n) {
+            fullUri = std::string(uri, n);
         }
         
-        inline void setMethod(const char * method, size_t size) {
-            m_method = std::string(method, size);
+        inline void setMethod(const char * method, size_t n) {
+            this->method = std::string(method, n);
         }
 
-        inline void appendHeader(const std::string & key, const std::string & value){
-            m_headers[key] = value;
+        inline void addHeader(const std::string & key, const std::string & value){
+            headers[key] = value;
         }
         
-        inline void appendParam(const std::string & key, const std::string & value){
-            m_params[key] = value;
+        inline void addParam(const std::string & key, const std::string & value){
+            params[key] = value;
         }
         
         inline const std::string & getFullURIRef() const {
-            return m_full_uri;
+            return fullUri;
         }
 
         inline const std::string getFullURI() const {
-            return m_full_uri;
+            return fullUri;
         }
         
         inline std::string getMethod() const {
-            return m_method;
+            return method;
         }
         
         inline bool isBodyAccept() const {
-            return m_body_accept;
+            return bodyAccept;
         }
         
-        inline void setBodyAccept(bool body_accept) {
-            m_body_accept = body_accept;
+        inline void setBodyAccept(bool accept) {
+            bodyAccept = accept;
         }
         
-        inline void setBody(const char* body, size_t size){
-            m_body = std::string(body, size);
+        inline void setBody(const char* body, size_t n){
+            this->body = std::string(body, n);
         }
         
         const std::string & getURIRef() const {
-            return m_uri;
+            return uri;
         }
 
         std::string getURI() const {
-            return m_uri;
+            return uri;
         }
 
         bool isBodyExists(){
-            return m_body_exists;
+            return bodyExists;
         }
 
         void setURI(const std::string & uri) {
-            m_uri = uri;
+            this->uri = uri;
         }
 
         void setBodyExists(bool value){
-           m_body_exists = value;
+            bodyExists = value;
         }
         
-        size_t getMaxOutputLengthBuffer() const {
-            return m_max_output_length_buffer;
+        size_t getMaxOutputBufferLength() const {
+            return maxOutputBufferLength;
         }
         
-        void setMaxOutputLengthBuffer(size_t max_output_length_buffer) {
-            m_max_output_length_buffer = max_output_length_buffer;
+        void setMaxOutputLengthBuffer(size_t n) {
+            maxOutputBufferLength = n;
         }
         
         const std::string & getBodyRef() const {
-            return m_body;
+            return body;
         }
 
         std::string getBody() const {
-            return m_body;
+            return body;
         }
         
         const std::unordered_map<std::string, std::string> getParams() const {
-            return m_params;
+            return params;
         }
         
         const std::string & getHeaderRef(const std::string & key) const ;

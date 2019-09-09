@@ -1,31 +1,31 @@
 #include "request.h"
 
-onyxup::PtrRequest onyxup::request::factoryRequest() {
+onyxup::PtrRequest onyxup::req::requestFactory() {
     PtrRequest requets = new (std::nothrow) Request;
     if (requets) {
-        requets->m_closing_connect = false;
-        requets->m_header_accept = false;
-        requets->m_body_accept = false;
-        requets->m_body_exists = false;
+        requets->closingConnect = false;
+        requets->headerAccept = false;
+        requets->bodyAccept = false;
+        requets->bodyExists = false;
         return requets;
     }
     return nullptr;
 }
 
 void onyxup::Request::clear() {
-    m_header_accept = false;
-    m_body_accept = false;
-    m_body_exists = false;
+    headerAccept = false;
+    bodyAccept = false;
+    bodyExists = false;
 
-    m_full_uri.clear();
-    m_uri.clear();
-    m_method.clear();
-    m_body.clear();
-    m_headers.clear();
-    m_params.clear();
+    fullUri.clear();
+    uri.clear();
+    method.clear();
+    body.clear();
+    headers.clear();
+    params.clear();
 }
 
-onyxup::PtrRequest onyxup::request::factoryCopyRequest(PtrRequest src) {
+onyxup::PtrRequest onyxup::req::requestCopyFactory(PtrRequest src) {
     PtrRequest dst = new (std::nothrow) Request;
     if (dst) {
         *dst = *src;
@@ -35,21 +35,21 @@ onyxup::PtrRequest onyxup::request::factoryCopyRequest(PtrRequest src) {
 }
 
 const std::string & onyxup::Request::getHeaderRef(const std::string & key) const {
-    return m_headers.at(key);
+    return headers.at(key);
 }
 
 std::string onyxup::Request::getHeader(const std::string & key) const {
-    return m_headers.at(key);
+    return headers.at(key);
 }
 
 int onyxup::Request::getFD() const {
-    return m_fd;
+    return fd;
 }
 
 bool onyxup::Request::isClosingConnect() const {
-    return m_closing_connect;
+    return closingConnect;
 }
 
 void onyxup::Request::setClosingConnect(bool closing) {
-    m_closing_connect = closing;
+    closingConnect = closing;
 }

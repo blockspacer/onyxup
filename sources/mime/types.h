@@ -156,6 +156,6 @@ namespace onyxup {
         static constexpr const char * MIME_TYPE_X_PKCS_P7M = "application/x-pkcs7-mime";
         static constexpr const char * MIME_TYPE_X_PKCS_P7S = "application/x-pkcs7-signature";
         
-        static std::unordered_map<std::string, std::string> generateMimeTypeMap();
+        static std::unordered_map<std::string, std::string> generateMimeTypesMap();
     };
 }

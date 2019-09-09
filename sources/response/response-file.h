@@ -28,8 +28,8 @@ namespace onyxup {
 
         ResponseFile(const std::string & file, bool compress = false) : ResponseBase(ResponseState::RESPONSE_STATE_OK_CODE, ResponseState::RESPONSE_STATE_OK_MSG, MimeType::MIME_TYPE_APPLICATION_OCTET_STREAM, compress) {
             setBody(file_reader(file));
-            appendHeader("Content-Description", "File Transfer");
-            appendHeader("Content-Transfer-Encoding", "binary");
+            addHeader("Content-Description", "File Transfer");
+            addHeader("Content-Transfer-Encoding", "binary");
         }
 
     };

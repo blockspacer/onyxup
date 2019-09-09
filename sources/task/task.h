@@ -17,79 +17,79 @@ namespace onyxup {
         JSON_RPC_TASK
     };
 
-    PtrTask factoryTask();
+    PtrTask taskFactory();
 
     class Task {
     private:
-        int m_fd;
-        onyxup::PtrRequest m_request;
-        std::function<ResponseBase(PtrCRequest request)> m_handler;
-        EnumTaskType m_type;
-        std::string m_response_data;
-        std::chrono::time_point<std::chrono::steady_clock> m_time_point;
-        int m_code;
+        int fd;
+        onyxup::PtrRequest request;
+        std::function<ResponseBase(PtrCRequest request)> handler;
+        EnumTaskType type;
+        std::string responseData;
+        std::chrono::time_point<std::chrono::steady_clock> timePoint;
+        int code;
     public:
 
         Task() = default;
         
         ~Task(){
-            delete m_request;
+            delete request;
         }
 
-        inline void setTimePoint(std::chrono::time_point<std::chrono::steady_clock> & time_point){
-            m_time_point = time_point;
+        inline void setTimePoint(std::chrono::time_point<std::chrono::steady_clock> & timePoint){
+            this->timePoint = timePoint;
         }
 
         inline void setFD(int fd) {
-            m_fd = fd;
+            this->fd = fd;
         }
         
         inline EnumTaskType getType() const {
-            return m_type;
+            return type;
         }
 
         inline void setType(EnumTaskType type) {
-            m_type = type;
+            this->type = type;
         }
         
         inline int getFD() const {
-            return m_fd;
+            return fd;
         }
 
         inline std::string getResponseData() const {
-            return m_response_data;
+            return responseData;
         }
         
         inline std::chrono::time_point<std::chrono::steady_clock> getTimePoint() const {
-            return m_time_point;
+            return timePoint;
         }
         
         void setHandler(const std::function<ResponseBase(PtrCRequest) > & handler) {
-            m_handler = handler;
+            this->handler = handler;
         }
 
         std::function<ResponseBase(PtrCRequest) > getHandler() {
-            return m_handler;
+            return handler;
         }
         
         inline onyxup::PtrRequest getRequest() const {
-            return m_request;
+            return request;
         }
         
-        inline void setResponseData(std::string && response_data) {
-            m_response_data = response_data;
+        inline void setResponseData(std::string && data) {
+            responseData = data;
         }
 
         inline void setRequest(onyxup::PtrRequest request) {
-            m_request = request;
+            this->request = request;
         }
 
         void setCode(int code) {
-            m_code = code;
+            this->code = code;
         }
 
         int getCode() const {
-            return m_code;
+            return code;
         }
 
     };

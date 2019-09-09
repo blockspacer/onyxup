@@ -37,10 +37,10 @@
 #include "../task/task.h"
 #include "../mime/types.h"
 #include "../httpparser/picohttpparser.h"
-#include "../response/chains/PrepareHeadResponseChain.h"
-#include "../response/chains/PrepareRangeResponseChain.h"
-#include "../response/chains/PrepareCompressResponseChain.h"
-#include "../response/chains/PrepareDefaultResponseChain.h"
+#include "../response/chains/ResponsePrepareHeadChain.h"
+#include "../response/chains/ResponsePrepareRangeChain.h"
+#include "../response/chains/ResponsePrepareCompressChain.h"
+#include "../response/chains/ResponsePrepareDefaultChain.h"
 #include "../response/response-404.h"
 #include "../response/response-413.h"
 #include "../response/response-408.h"
@@ -82,35 +82,35 @@ namespace onyxup {
 
     class HttpServer {
     private:
-        int m_fd;
-        int m_e_poll_fd;
-        size_t m_number_threads;
-        std::vector<std::thread> m_pool_threads;
+        int fd;
+        int epollFd;
+        size_t numberThreads;
+        std::vector<std::thread> threadsPool;
 
-        size_t m_max_connection = 10000;
-        size_t m_max_events_epoll = 100;
-        size_t m_max_input_length_buffer = 1024 * 1024 * 2;
-        size_t m_max_output_length_buffer = 1024 * 1024 * 2;
-        PtrBuffer * m_buffers;
-        PtrRequest * m_requests;
-        std::vector<std::chrono::time_point<std::chrono::steady_clock>> m_alive_sockets;
+        size_t maxConnection = 10000;
+        size_t maxEventsEpoll = 100;
+        size_t maxInputBufferLength = 1024 * 1024 * 2;
+        size_t maxOutputBUfferLength = 1024 * 1024 * 2;
+        PtrBuffer * buffers;
+        PtrRequest * requests;
+        std::vector<std::chrono::time_point<std::chrono::steady_clock>> aliveSockets;
 
-        std::vector<Route> m_routes;
+        std::vector<Route> routes;
 
-        ThreadSafeQueue<PtrTask> m_queue_tasks;
-        ThreadSafeQueue<PtrTask> m_queue_static_tasks;
-        ThreadSafeQueue<PtrTask> m_queue_performed_tasks;
+        ThreadSafeQueue<PtrTask> tasksQueue;
+        ThreadSafeQueue<PtrTask> staticTasksQueue;
+        ThreadSafeQueue<PtrTask> performedTasksQueue;
 
-        static bool m_statistics_enable;
-        static std::string m_statistics_url;
-        static int m_time_limit_request_seconds;
-        static int m_limit_local_tasks;
-        static std::string m_path_to_static_resources;
-        static bool m_compress_static_resources;
-        static bool m_cached_static_resources;
-        static std::string m_path_to_configuration_file;
-        static std::unordered_map<std::string, std::string> m_map_mime_types;
-        static std::unordered_map<std::string, ResponseBase> m_map_cached_static_resources;
+        static bool statisticsEnable;
+        static std::string statisticsUrl;
+        static int timeLimitRequestSeconds;
+        static int limitLocalTasks;
+        static std::string pathToStaticResources;
+        static bool compressStaticResources;
+        static bool cachedStaticResources;
+        static std::string pathToConfigurationFile;
+        static std::unordered_map<std::string, std::string> mimeTypesMap;
+        static std::unordered_map<std::string, ResponseBase> cachedStaticResourcesMap;
 
         void closeAllSocketsAndClearData(int fd);
 
@@ -121,12 +121,12 @@ namespace onyxup {
 
         inline void addTask(PtrTask task) {
             if(task->getType() == EnumTaskType::LOCAL_TASK)
-                m_queue_tasks.push(task);
+                tasksQueue.push(task);
             else if(task->getType() == EnumTaskType::STATIC_RESOURCES_TASK)
-                m_queue_static_tasks.push(task);
+                staticTasksQueue.push(task);
         }
 
-        void handler_tasks(int id);
+        void tasksHandler(int id);
         int writeToOutputBuffer(int fd, const char * data, size_t len) noexcept ;
         PtrTask dispatcher(PtrRequest request) noexcept;
 
@@ -141,14 +141,14 @@ namespace onyxup {
         void addRoute(const std::string & method, const char * regex, std::function<ResponseBase(PtrCRequest request) > handler, EnumTaskType type) noexcept ;
 
         static void setPathToStaticResources(const std::string & path) {
-            m_path_to_static_resources = path;
+            pathToStaticResources = path;
         }
 
         static void setCompressStaticResources(bool compress){
-            m_compress_static_resources = compress;
+            compressStaticResources = compress;
         }
 
-        static ResponseBase default_callback_static_resources(PtrCRequest request);
+        static ResponseBase defaultCallbackStaticResources(PtrCRequest request);
 
         static const char * getVersion() {
             return VERSION_APPLICATION;
@@ -170,9 +170,9 @@ namespace onyxup {
 
         static void setStatisticsUrl(const std::string & url);
 
-        void setMaxInputLengthBuffer(size_t length);
+        void setMaxInputBufferLength(size_t len);
 
-        void setMaxOutputLengthBuffer(size_t length);
+        void setMaxOutputBufferLength(size_t len);
 
     };
 

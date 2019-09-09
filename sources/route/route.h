@@ -12,34 +12,34 @@ namespace onyxup {
 
     class Route {
     private:
-        std::string m_method;
-        regex_t m_pregex;
-        std::function<ResponseBase(PtrCRequest request) > m_handler;
-        EnumTaskType m_type;
+        std::string method;
+        regex_t pregex;
+        std::function<ResponseBase(PtrCRequest request) > handler;
+        EnumTaskType type;
     public:
 
-        Route(const std::string & method, const char * regex, std::function<ResponseBase(PtrCRequest) > & handler, EnumTaskType type) : m_method(method), m_handler(handler){
-            m_type = type;
+        Route(const std::string & method, const char * regex, std::function<ResponseBase(PtrCRequest) > & handler, EnumTaskType type) : method(method), handler(handler){
+            this->type = type;
             int err;
-            err = regcomp(&m_pregex, regex, REG_EXTENDED);
+            err = regcomp(&pregex, regex, REG_EXTENDED);
             if (err != 0)
                 throw OnyxupException("Ошибка создания Route");
         }
 
         inline std::string getMethod() const {
-            return m_method;
+            return method;
         }
 
         inline regex_t getPregex() const {
-            return m_pregex;
+            return pregex;
         }
 
         inline EnumTaskType getTaskType() const {
-            return m_type;
+            return type;
         }
         
         std::function<ResponseBase(PtrCRequest) > getHandler() const {
-            return m_handler;
+            return handler;
         }
 
 

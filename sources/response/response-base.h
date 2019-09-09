@@ -19,12 +19,12 @@ namespace onyxup {
     class ResponseBase {
     private:
 
-        std::string m_header;
-        std::string m_body;
-        int m_code;
-        const char *m_code_msg;
-        const char *m_mime;
-        bool m_compress;
+        std::string header;
+        std::string body;
+        int code;
+        const char * codeMsg;
+        const char * mimeType;
+        bool compress;
         std::unordered_map<std::string, std::string> m_headers;
 
         std::string prepareResponse();
@@ -36,7 +36,7 @@ namespace onyxup {
         static std::string SERVER_IP;
         static int SERVER_PORT;
 
-        ResponseBase(int code, const char *code_msg, const char *mime, const std::string &body, bool compress = false) : m_code(code), m_code_msg(code_msg), m_mime(mime), m_body(body), m_compress(compress){
+        ResponseBase(int code, const char *codeMsg, const char *mime, const std::string &body, bool compress = false) : code(code), codeMsg(codeMsg), mimeType(mime), body(body), compress(compress){
         }
 
         ResponseBase(int code, const char *code_msg, const char *mime, bool compress = false): ResponseBase(code, code_msg, mime, "", compress){
@@ -55,15 +55,15 @@ namespace onyxup {
             return prepareResponse();
         }
 
-        std::string to_string() {
+        std::string toString() {
             return prepareResponse();
         }
 
-        const char *getMime() const;
+        const char *getMimeType() const;
 
         void setBody(const std::string &body);
 
-        void appendHeader(const std::string &key, const std::string &value);
+        void addHeader(const std::string &key, const std::string &value);
 
         const std::string & getBody() const;
 

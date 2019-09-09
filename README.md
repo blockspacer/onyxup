@@ -79,7 +79,7 @@ onyxup::ResponseBase file(onyxup::PtrCRequest request);
 
 onyxup::ResponseBase params(onyxup::PtrCRequest request);
 
-onyxup::ResponseBase multipart_form(onyxup::PtrCRequest request);
+onyxup::ResponseBase multipartForm(onyxup::PtrCRequest request);
 
 int main() {
 
@@ -96,13 +96,13 @@ int main() {
     /*
      * Route для статических файлов
      */
-    server.addRoute("GET", "^/static/.+$", onyxup::HttpServer::default_callback_static_resources, onyxup::EnumTaskType ::STATIC_RESOURCES_TASK);
+    server.addRoute("GET", "^/static/.+$", onyxup::HttpServer::defaultCallbackStaticResources, onyxup::EnumTaskType ::STATIC_RESOURCES_TASK);
 
     /*
      * Путь до расположения статических файлов
      */
-    std::string path_to_static_files = "/project/";
-    onyxup::HttpServer::setPathToStaticResources(path_to_static_files);
+    std::string pathToStaticFiles = "/project/";
+    onyxup::HttpServer::setPathToStaticResources(pathToStaticFiles);
 
     /*
     *   Максимальное время выполнения запроса на сервер (по умолчанию 60 с)
@@ -132,30 +132,30 @@ onyxup::ResponseBase json(onyxup::PtrCRequest request) {
 }
 
 onyxup::ResponseBase file(onyxup::PtrCRequest request) {
-    std::string path_to_file;
-    return onyxup::ResponseFile(path_to_file);
+    std::string pathToFile;
+    return onyxup::ResponseFile(pathToFile);
 }
 
 onyxup::ResponseBase params(onyxup::PtrCRequest request) {
     /*
      * Запрос /params?param-first=1&param-second=data
      */
-    auto & request_params = request->getParams();
-    if(request_params.find("param-first") != request_params.end()){
-        int param1 =  std::stoi(request_params.at("param-first"), nullptr);
+    auto & params = request->getParams();
+    if(params.find("param-first") != params.end()){
+        int param1 =  std::stoi(params.at("param-first"), nullptr);
         std::cout << "Param first = " << param1 << std::endl;
     }
-    if(request_params.find("param-second") != request_params.end()){
-        std::string param1 =  request_params.at("param-second");
+    if(params.find("param-second") != params.end()){
+        std::string param1 =  params.at("param-second");
         std::cout << "Param second = " << param1 << std::endl;
     }
     return onyxup::ResponseJson(R"({"status":"success"})");
 }
 
-onyxup::ResponseBase multipart_form(onyxup::PtrCRequest request) {
-    auto form_fields = onyxup::utils::multipartFormData(request);
-    std::vector<char> data = form_fields["image"].getData();
-    std::string filename = "./" + form_fields["image"].getFilename();
+onyxup::ResponseBase multipartForm(onyxup::PtrCRequest request) {
+    auto fields = onyxup::utils::multipartFormData(request);
+    std::vector<char> data = fields["image"].getData();
+    std::string filename = "./" + fields["image"].getFilename();
     std::ofstream f(filename, std::ios::binary);
     std::copy(data.begin(), data.end(), std::ostream_iterator<char>(f, ""));
     return onyxup::ResponseJson(R"({"status":"success"})", true);

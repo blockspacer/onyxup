@@ -10,20 +10,20 @@ namespace onyxup {
     using PtrBuffer = Buffer *;
     
     namespace buffer {
-        PtrBuffer factoryBuffer(size_t in_buffer_size, size_t out_buffer_size);
+        PtrBuffer bufferFactory(size_t in_len, size_t out_len);
     }
 
     class Buffer {
-        friend PtrBuffer buffer::factoryBuffer(size_t in_buffer_size, size_t out_buffer_size);
+        friend PtrBuffer buffer::bufferFactory(size_t in_len, size_t out_len);
     private:
-        char * m_in_buffer;
-        char * m_out_buffer;
-        size_t m_out_buffer_position;
-        size_t m_in_buffer_position;
-        size_t m_number_bytes_to_send;
+        char * inputBuffer;
+        char * outputBuffer;
+        size_t posOutputBuffer;
+        size_t posInputBuffer;
+        size_t numberBytesToSend;
 
-        size_t m_in_buffer_size;
-        size_t m_out_buffer_size;
+        size_t  inputBufferLength;
+        size_t  outputBufferLength;
 
         Buffer(){}
     public:
@@ -32,41 +32,36 @@ namespace onyxup {
 
         void clear();
 
-        inline char* getInBuffer() {
-            return m_in_buffer;
+        inline char* getInputBuffer() {
+            return inputBuffer;
         }
         
-        inline char* getOutBuffer() const {
-            return m_out_buffer;
+        inline char* getOutputBuffer() const {
+            return outputBuffer;
         }
 
-        inline size_t getInBufferPosition() const {
-            return m_in_buffer_position;
+        inline size_t getPosInputBuffer() const {
+            return posInputBuffer;
         }
         
-        inline size_t getOutBufferPosition() const {
-            return m_out_buffer_position;
+        inline size_t getPosOutputBuffer() const {
+            return posOutputBuffer;
         }
         
         inline size_t getBytesToSend() const {
-            return m_number_bytes_to_send;
+            return numberBytesToSend;
         }
         
-        inline void setOutBufferPosition(size_t out_buffer_position) {
-            m_out_buffer_position = out_buffer_position;
+        inline void setPosOutputBuffer(size_t pos) {
+            posOutputBuffer = pos;
         }
         
-        inline void setBytesToSend(size_t nbytes_to_send) {
-            m_number_bytes_to_send = nbytes_to_send;
+        inline void setBytesToSend(size_t n) {
+            numberBytesToSend = n;
         }
 
-        inline size_t getOutBufferSize() const {
-            return m_out_buffer_position;
-        }
-
-        
-        void appendInBuffer(const char * data, size_t size);
-        void appendOutBuffer(const char * data, size_t size);
+        void addDataToInputBuffer(const char * data, size_t n);
+        void addDataToOutputBuffer(const char * data, size_t n);
     };
 
     

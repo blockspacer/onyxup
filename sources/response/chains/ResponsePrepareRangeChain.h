@@ -1,11 +1,11 @@
 #pragma once
 
-#include "IPrepareResponseChain.h"
+#include "IResponsePrepareChain.h"
 #include "../../response/response-states.h"
 #include "../../exception/exception.h"
 #include "../../mime/types.h"
 
-static bool check_client_request_range(onyxup::PtrTask task) {
+static bool CheckRequestRange(onyxup::PtrTask task) {
     try {
         if (task->getRequest()->getHeaderRef("range").find("bytes") != std::string::npos)
             return true;
@@ -14,16 +14,16 @@ static bool check_client_request_range(onyxup::PtrTask task) {
     }
 }
 
-void static prepare_range_not_satisfiable_response(onyxup::ResponseBase &response) {
+void static PrepareRangeNotSatisfiableResponse(onyxup::ResponseBase &response) {
     std::ostringstream os;
     os << "*/" << response.getBody().size();
     response.setCode(onyxup::ResponseState::RESPONSE_STATE_RANGE_NOT_SATISFIABLE_CODE);
     response.setCodeMsg(onyxup::ResponseState::RESPONSE_STATE_RANGE_NOT_SATISFIABLE_MSG);
-    response.appendHeader("Content-Range", os.str());
+    response.addHeader("Content-Range", os.str());
     response.setBody("");
 }
 
-static void prepare_range_response(onyxup::ResponseBase &response, std::vector<std::pair<size_t, size_t>> &ranges) {
+static void PrepareRangeResponse(onyxup::ResponseBase &response, std::vector<std::pair<size_t, size_t>> &ranges) {
     if (ranges.size() == 1) {
         std::string body;
         std::copy(response.getBody().begin() + ranges[0].first,
@@ -34,12 +34,12 @@ static void prepare_range_response(onyxup::ResponseBase &response, std::vector<s
            << response.getBody().size();
         response.setCode(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_CODE);
         response.setCodeMsg(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_MSG);
-        response.appendHeader("Content-Range", os.str());
-        response.appendHeader("Content-Length", std::to_string(body.size()));
+        response.addHeader("Content-Range", os.str());
+        response.addHeader("Content-Length", std::to_string(body.size()));
         response.setBody(body);
     } else {
         size_t length_body = response.getBody().size();
-        const char *content_type_body = response.getMime();
+        const char *content_type_body = response.getMimeType();
         std::ostringstream os;
         response.setCode(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_CODE);
         response.setCodeMsg(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_MSG);
@@ -57,24 +57,24 @@ static void prepare_range_response(onyxup::ResponseBase &response, std::vector<s
                 os << "\r\n";
         }
         response.setBody(os.str());
-        response.appendHeader("Content-Length", std::to_string(response.getBody().size()));
+        response.addHeader("Content-Length", std::to_string(response.getBody().size()));
     }
 }
 
 namespace onyxup {
-    class PrepareRangeResponseChain : public IPrepareResponseChain {
+    class ResponsePrepareRangeChain : public IResponsePrepareChain {
     public:
         virtual void execute(PtrTask task, onyxup::ResponseBase &response) override {
-            if(check_client_request_range(task)){
+            if(CheckRequestRange(task)){
                 try {
                         std::vector<std::pair<size_t, size_t>> ranges = utils::parseRangesRequest(task->getRequest()->getHeaderRef("range"), response.getBody().size() - 1);
-                        prepare_range_response(response, ranges);
+                    PrepareRangeResponse(response, ranges);
                     } catch (OnyxupException &ex) {
-                        prepare_range_not_satisfiable_response(response);
+                    PrepareRangeNotSatisfiableResponse(response);
                     }
             } else {
-                 if (m_next_prepare_response_chain != nullptr)
-                     m_next_prepare_response_chain->execute(task, response);
+                 if (nextChain != nullptr)
+                     nextChain->execute(task, response);
             }
         }
     };

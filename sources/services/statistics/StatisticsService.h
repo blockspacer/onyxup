@@ -13,24 +13,24 @@
 namespace onyxup {
     class StatisticsService {
     private:
-        unsigned long long m_total_number_connections_accepted;
-        unsigned long long m_total_number_connections_processed;
-        unsigned long long m_total_number_client_requests;
+        unsigned long long totalNumberConnectionsAccepted;
+        unsigned long long totalNumberConnectionsProcessed;
+        unsigned long long totalNumberClientRequests;
 
-        unsigned long long m_current_number_read_requests;
-        unsigned long long m_current_number_write_requests;
-        unsigned long long m_current_number_wait_requests;
+        unsigned long long currentNumberReadRequests;
+        unsigned long long currentNumberWriteRequests;
+        unsigned long long currentNumberWaitRequests;
 
-        unsigned long long m_current_number_tasks;
+        unsigned long long currentNumberTasks;
 
-        const PtrBuffer * m_buffers;
-        const PtrRequest * m_requests;
-        size_t m_length_buffers_and_requests;
+        const PtrBuffer * buffers;
+        const PtrRequest * requests;
+        size_t buffersAndRequestsLength;
 
     public:
         onyxup::ResponseBase callback(PtrCRequest);
 
-        StatisticsService(const PtrBuffer * buffers, const PtrRequest * requests, size_t length);
+        StatisticsService(const PtrBuffer * buffers, const PtrRequest * requests, size_t n);
 
         void addTotalNumberConnectionsAccepted();
         void addTotalNumberConnectionsProcessed();

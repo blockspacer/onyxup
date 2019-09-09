@@ -2,17 +2,17 @@
 
 #include "buffer.h"
 
-onyxup::PtrBuffer onyxup::buffer::factoryBuffer(size_t in_buffer_size, size_t out_buffer_size) {
+onyxup::PtrBuffer onyxup::buffer::bufferFactory(size_t in_len, size_t out_len) {
     PtrBuffer buffer = new (std::nothrow) Buffer;
     if (buffer) {
-        buffer->m_in_buffer_size = in_buffer_size;
-        buffer->m_out_buffer_size = out_buffer_size;
-        buffer->m_in_buffer = new (std::nothrow) char[in_buffer_size];
-        buffer->m_out_buffer = new (std::nothrow) char[out_buffer_size];
-        if (buffer->m_in_buffer && buffer->m_out_buffer) {
-            buffer->m_out_buffer_position = 0;
-            buffer->m_in_buffer_position = 0;
-            buffer->m_number_bytes_to_send = 0;
+        buffer->inputBufferLength = in_len;
+        buffer->outputBufferLength = out_len;
+        buffer->inputBuffer = new (std::nothrow) char[in_len];
+        buffer->outputBuffer = new (std::nothrow) char[out_len];
+        if (buffer->inputBuffer && buffer->outputBuffer) {
+            buffer->posOutputBuffer = 0;
+            buffer->posInputBuffer = 0;
+            buffer->numberBytesToSend = 0;
             return buffer;
         } else {
             delete buffer;
@@ -22,22 +22,22 @@ onyxup::PtrBuffer onyxup::buffer::factoryBuffer(size_t in_buffer_size, size_t ou
 }
 
 void onyxup::Buffer::clear() {
-    m_out_buffer_position = 0;
-    m_in_buffer_position = 0;
-    m_number_bytes_to_send = 0;
+    posOutputBuffer = 0;
+    posInputBuffer = 0;
+    numberBytesToSend = 0;
 }
 
-void onyxup::Buffer::appendInBuffer(const char* data, size_t size) {
-    memcpy(m_in_buffer + m_in_buffer_position, data, size);
-    m_in_buffer_position += size;
+void onyxup::Buffer::addDataToInputBuffer(const char* data, size_t n) {
+    memcpy(inputBuffer + posInputBuffer, data, n);
+    posInputBuffer += n;
 }
 
-void onyxup::Buffer::appendOutBuffer(const char * data, size_t size) {
-    memcpy(m_out_buffer + m_out_buffer_position, data, size);
-    m_number_bytes_to_send += size;
+void onyxup::Buffer::addDataToOutputBuffer(const char * data, size_t n) {
+    memcpy(outputBuffer + posOutputBuffer, data, n);
+    numberBytesToSend += n;
 }
 
 onyxup::Buffer::~Buffer() {
-    delete [] m_in_buffer;
-    delete [] m_out_buffer;
+    delete [] inputBuffer;
+    delete [] outputBuffer;
 }

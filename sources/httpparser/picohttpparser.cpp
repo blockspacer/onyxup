@@ -357,7 +357,7 @@ static const char *parse_request(const char *buf, const char *buf_end, const cha
         ++buf;
     }
 
-    /* parse request line */
+    /* parse req line */
     ADVANCE_TOKEN(*method, *method_len);
     ++buf;
     ADVANCE_TOKEN(*path, *path_len);
@@ -396,7 +396,7 @@ int phr_parse_request(const char *buf_start, size_t len, const char **method, si
     *minor_version = -1;
     *num_headers = 0;
 
-    /* if last_len != 0, check if the request is complete (a fast countermeasure
+    /* if last_len != 0, check if the req is complete (a fast countermeasure
        againt slowloris */
     if (last_len != 0 && is_complete(buf, buf_end, last_len, &r) == NULL) {
         return r;
