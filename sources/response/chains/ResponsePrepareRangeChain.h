@@ -43,7 +43,7 @@ static void PrepareRangeResponse(onyxup::ResponseBase &response, std::vector<std
         std::ostringstream os;
         response.setCode(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_CODE);
         response.setCodeMsg(onyxup::ResponseState::RESPONSE_STATE_PARTIAL_CONTENT_MSG);
-        response.setMime(onyxup::MimeType::MIME_TYPE_MULTIPART_BYTES_RANGES);
+        response.setMimeType(onyxup::MimeType::MIME_TYPE_MULTIPART_BYTES_RANGES);
         for (size_t i = 0; i < ranges.size(); i++) {
             auto range = ranges[i];
             std::string body;

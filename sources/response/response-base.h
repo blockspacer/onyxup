@@ -39,7 +39,7 @@ namespace onyxup {
         ResponseBase(int code, const char *codeMsg, const char *mime, const std::string &body, bool compress = false) : code(code), codeMsg(codeMsg), mimeType(mime), body(body), compress(compress){
         }
 
-        ResponseBase(int code, const char *code_msg, const char *mime, bool compress = false): ResponseBase(code, code_msg, mime, "", compress){
+        ResponseBase(int code, const char *codeMsg, const char *mime, bool compress = false): ResponseBase(code, codeMsg, mime, "", compress){
         }
 
         ResponseBase(){
@@ -73,7 +73,7 @@ namespace onyxup {
 
         void setCodeMsg(const char *codeMsg);
 
-        void setMime(const char *mime);
+        void setMimeType(const char *mimeType);
 
         int getCode() const;
 

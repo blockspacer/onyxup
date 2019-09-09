@@ -48,8 +48,8 @@ onyxup::ResponseBase& onyxup::ResponseBase::operator=(onyxup::ResponseBase && sr
     return *this;
 }
 
-void onyxup::ResponseBase::setBody(const std::string &body_) {
-    body = body_;
+void onyxup::ResponseBase::setBody(const std::string &body) {
+    this->body = body;
 }
 
 void onyxup::ResponseBase::addHeader(const std::string &key, const std::string &value) {
@@ -65,15 +65,15 @@ bool onyxup::ResponseBase::isCompress() const {
 }
 
 void onyxup::ResponseBase::setCode(int code) {
-    code = code;
+    this->code = code;
 }
 
 void onyxup::ResponseBase::setCodeMsg(const char *codeMsg) {
-    codeMsg = codeMsg;
+    this->codeMsg = codeMsg;
 }
 
-void onyxup::ResponseBase::setMime(const char *mime) {
-    mimeType = mime;
+void onyxup::ResponseBase::setMimeType(const char *mimeType) {
+    this->mimeType = mimeType;
 }
 
 const char *onyxup::ResponseBase::getMimeType() const {
