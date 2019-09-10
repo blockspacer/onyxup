@@ -2,7 +2,7 @@
 
 #include "IResponsePrepareChain.h"
 
-static void PrepareDefaultResponse(onyxup::ResponseBase &response) {
+static void prepareDefaultResponse(onyxup::ResponseBase &response) {
     response.addHeader("Content-Length", std::to_string(response.getBody().size()));
 }
 
@@ -12,7 +12,7 @@ namespace onyxup {
         
        
         virtual void execute(PtrTask task, onyxup::ResponseBase &response) override {
-            PrepareDefaultResponse(response);
+            prepareDefaultResponse(response);
             if (nextChain != nullptr)
                 nextChain->execute(task, response);
         }

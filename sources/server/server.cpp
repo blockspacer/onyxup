@@ -22,7 +22,7 @@ std::unordered_map<std::string, onyxup::ResponseBase> onyxup::HttpServer::cached
 
 std::unique_ptr<onyxup::StatisticsService> statisticsService(nullptr);
 
-static json ParseConfigurationFile(const std::string &filename) {
+static json parseConfigurationFile(const std::string &filename) {
     json settings;
     try {
         std::string buffer;
@@ -38,7 +38,7 @@ static json ParseConfigurationFile(const std::string &filename) {
     return settings;
 }
 
-static int SetNonBlockingModeSocket(int fd) {
+static int setNonBlockingModeSocket(int fd) {
     int flags;
     if (-1 == (flags = fcntl(fd, F_GETFL, 0)))
         flags = 0;
@@ -151,7 +151,7 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : numberThreads(n) {
 #endif
 
     pathToConfigurationFile = "/var/onyxup/config.json";
-    auto settings = ParseConfigurationFile(pathToConfigurationFile);
+    auto settings = parseConfigurationFile(pathToConfigurationFile);
     
     if (settings.find("server") != settings.end()) {
         json json_server = settings["server"];
@@ -259,7 +259,7 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : numberThreads(n) {
         LOGE << "Не возможно создать серверный сокет. Ошибка " << errno;
         throw OnyxupException("Не возможно создать серверный сокет");
     }
-    if (SetNonBlockingModeSocket(fd) == -1) {
+    if (setNonBlockingModeSocket(fd) == -1) {
         LOGE << "Не возможно создать серверный сокет. Ошибка " << errno;
         throw OnyxupException("Не возможно создать серверный сокет");
     }
@@ -374,7 +374,7 @@ void onyxup::HttpServer::run() noexcept {
                     LOGE << "Не возможно принять соединение на сервере. Ошибка " << errno;
                     continue;
                 }
-                if (SetNonBlockingModeSocket(conn_sock) == -1) {
+                if (setNonBlockingModeSocket(conn_sock) == -1) {
                     closeSocket(conn_sock);
                     LOGE << "Не возможно перевести сокет в неблокирующий режим. Ошибка " << errno;
                     continue;

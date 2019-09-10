@@ -3,7 +3,7 @@
 #include "IResponsePrepareChain.h"
 #include "../../gzip/compress.hpp"
 
-static bool CheckSupportGzipEncoding(onyxup::PtrTask task) {
+static bool checkSupportGzipEncoding(onyxup::PtrTask task) {
     try {
         if (task->getRequest()->getHeaderRef("accept-encoding").find("gzip") != std::string::npos)
             return true;
@@ -12,7 +12,7 @@ static bool CheckSupportGzipEncoding(onyxup::PtrTask task) {
     }
 }
 
-static void PrepareCompressResponse(onyxup::ResponseBase &response) {
+static void prepareCompressResponse(onyxup::ResponseBase &response) {
     response.addHeader("Content-Encoding", "gzip");
     std::string compressed_body = gzip::compress(response.getBody().c_str(), response.getBody().size());
     response.setBody(compressed_body);
@@ -29,10 +29,10 @@ namespace onyxup {
         }
         
         virtual void execute(PtrTask task, onyxup::ResponseBase &response) override {
-            if(CheckSupportGzipEncoding(task) && response.isCompress())
-                PrepareCompressResponse(response);
+            if(checkSupportGzipEncoding(task) && response.isCompress())
+                prepareCompressResponse(response);
             else if(task->getType() == EnumTaskType::STATIC_RESOURCES_TASK && compressStaticResources)
-                PrepareCompressResponse(response);
+                prepareCompressResponse(response);
             else {
                 if (nextChain != nullptr)
                     nextChain->execute(task, response);

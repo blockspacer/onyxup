@@ -5,7 +5,7 @@
 #include "../../exception/exception.h"
 #include "../../mime/types.h"
 
-static bool CheckRequestRange(onyxup::PtrTask task) {
+static bool checkRequestRange(onyxup::PtrTask task) {
     try {
         if (task->getRequest()->getHeaderRef("range").find("bytes") != std::string::npos)
             return true;
@@ -14,7 +14,7 @@ static bool CheckRequestRange(onyxup::PtrTask task) {
     }
 }
 
-void static PrepareRangeNotSatisfiableResponse(onyxup::ResponseBase &response) {
+void static prepareRangeNotSatisfiableResponse(onyxup::ResponseBase &response) {
     std::ostringstream os;
     os << "*/" << response.getBody().size();
     response.setCode(onyxup::ResponseState::RESPONSE_STATE_RANGE_NOT_SATISFIABLE_CODE);
@@ -23,7 +23,7 @@ void static PrepareRangeNotSatisfiableResponse(onyxup::ResponseBase &response) {
     response.setBody("");
 }
 
-static void PrepareRangeResponse(onyxup::ResponseBase &response, std::vector<std::pair<size_t, size_t>> &ranges) {
+static void prepareRangeResponse(onyxup::ResponseBase &response, std::vector<std::pair<size_t, size_t>> &ranges) {
     if (ranges.size() == 1) {
         std::string body;
         std::copy(response.getBody().begin() + ranges[0].first,
@@ -65,16 +65,17 @@ namespace onyxup {
     class ResponsePrepareRangeChain : public IResponsePrepareChain {
     public:
         virtual void execute(PtrTask task, onyxup::ResponseBase &response) override {
-            if(CheckRequestRange(task)){
+            if (checkRequestRange(task)) {
                 try {
-                        std::vector<std::pair<size_t, size_t>> ranges = utils::parseRangesRequest(task->getRequest()->getHeaderRef("range"), response.getBody().size() - 1);
-                    PrepareRangeResponse(response, ranges);
-                    } catch (OnyxupException &ex) {
-                    PrepareRangeNotSatisfiableResponse(response);
-                    }
+                    std::vector<std::pair<size_t, size_t>> ranges = utils::parseRangesRequest(
+                            task->getRequest()->getHeaderRef("range"), response.getBody().size() - 1);
+                    prepareRangeResponse(response, ranges);
+                } catch (OnyxupException &ex) {
+                    prepareRangeNotSatisfiableResponse(response);
+                }
             } else {
-                 if (nextChain != nullptr)
-                     nextChain->execute(task, response);
+                if (nextChain != nullptr)
+                    nextChain->execute(task, response);
             }
         }
     };
