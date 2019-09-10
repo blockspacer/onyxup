@@ -9,13 +9,13 @@ static plog::ColorConsoleAppender<plog::TxtFormatter> consoleAppender;
 static plog::ColorConsoleAppender<onyxup::Formatter<>> consoleAppender;
 #endif
 
-bool onyxup::HttpServer::statisticsEnable = false;
+bool onyxup::HttpServer::isStatisticsEnable = false;
 std::string onyxup::HttpServer::statisticsUrl("^/onyxup-status-page$");
 std::string onyxup::HttpServer::pathToStaticResources;
 int onyxup::HttpServer::timeLimitRequestSeconds = 60;
 int onyxup::HttpServer::limitLocalTasks = 100;
-bool onyxup::HttpServer::compressStaticResources = false;
-bool onyxup::HttpServer::cachedStaticResources = true;
+bool onyxup::HttpServer::isCompressStaticResources = false;
+bool onyxup::HttpServer::isCachedStaticResources = true;
 std::string onyxup::HttpServer::pathToConfigurationFile;
 std::unordered_map<std::string, std::string> onyxup::HttpServer::mimeTypesMap;
 std::unordered_map<std::string, onyxup::ResponseBase> onyxup::HttpServer::cachedStaticResourcesMap;
@@ -48,7 +48,7 @@ static int setNonBlockingModeSocket(int fd) {
 int onyxup::HttpServer::writeToOutputBuffer(int fd, const char *data, size_t len) noexcept {
     PtrBuffer buffer = buffers[fd];
     int code = ResponseState::RESPONSE_STATE_OK_CODE;
-    if (buffer->getPosOutputBuffer() + len >= maxOutputBUfferLength) {
+    if (buffer->getPosOutputBuffer() + len >= maxOutputBufferLength) {
         buffer->clear();
         Response413 response = Response413();
         response.addHeader("Content-Length",
@@ -116,7 +116,7 @@ void onyxup::HttpServer::tasksHandler(int id) {
     
     thread_local std::shared_ptr<ResponsePrepareHeadChain> responsePrepareHeadChain (new ResponsePrepareHeadChain);
     thread_local std::shared_ptr<ResponsePrepareRangeChain> responsePrepareRangeChain (new ResponsePrepareRangeChain);
-    thread_local std::shared_ptr<ResponsePrepareCompressChain> responsePrepareCompressChain(new ResponsePrepareCompressChain(compressStaticResources));
+    thread_local std::shared_ptr<ResponsePrepareCompressChain> responsePrepareCompressChain(new ResponsePrepareCompressChain(isCompressStaticResources));
     thread_local std::shared_ptr<ResponsePrepareDefaultChain> responsePrepareDefaultChain (new ResponsePrepareDefaultChain);
     
     responsePrepareHeadChain->setNextHandler(responsePrepareRangeChain);
@@ -175,7 +175,7 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : numberThreads(n) {
         }
         try {
             if (json_server.find("max_output_length_buffer") != json_server.end())
-                maxOutputBUfferLength = settings["server"]["max_output_length_buffer"].get<int>();
+                maxOutputBufferLength = settings["server"]["max_output_length_buffer"].get<int>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле server -> max_output_length_buffer должно быть целым";
         }
@@ -202,20 +202,20 @@ onyxup::HttpServer::HttpServer(int port, size_t n) : numberThreads(n) {
         }
         try {
             if (json_static_resources.find("compress") != json_static_resources.end())
-                compressStaticResources = settings["static-resources"]["compress"].get<bool>();
+                isCompressStaticResources = settings["static-resources"]["compress"].get<bool>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле static-resources -> compress должно быть булевым";
         }
         try {
             if (json_static_resources.find("cache") != json_static_resources.end())
-                cachedStaticResources = settings["static-resources"]["cache"].get<bool>();
+                isCachedStaticResources = settings["static-resources"]["cache"].get<bool>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле static-resources -> cache должно быть булевым";
         }
     }
     if (settings.find("statistics") != settings.end()) {
         try {
-            statisticsEnable = settings["enable"].get<bool>();
+            isStatisticsEnable = settings["enable"].get<bool>();
         } catch (json::exception &ex) {
             LOGE << "Ошибка чтения конфигурационного файла. Поле statistics -> enable должно быть булевым";
         }
@@ -304,7 +304,7 @@ void onyxup::HttpServer::run() noexcept {
     /*
      * Подключение сбора статистики
      */
-    if (statisticsEnable) {
+    if (isStatisticsEnable) {
         this->addRoute("GET", statisticsUrl.c_str(), [](PtrCRequest request) -> ResponseBase {
             return statisticsService->callback(request);
         }, EnumTaskType::LOCAL_TASK);
@@ -314,7 +314,7 @@ void onyxup::HttpServer::run() noexcept {
         static size_t counter_check_limit_time_request = 0;
         std::chrono::time_point<std::chrono::steady_clock> now = std::chrono::steady_clock::now();
 
-        if (statisticsEnable)
+        if (isStatisticsEnable)
             statisticsService->setCurrentNumberTasks(tasksQueue.size() + staticTasksQueue.size());
         for (size_t i = counter_check_limit_time_request;
              i < maxConnection && i < counter_check_limit_time_request + 100; i++) {
@@ -387,7 +387,7 @@ void onyxup::HttpServer::run() noexcept {
                     continue;
                 }
 
-                if (statisticsEnable)
+                if (isStatisticsEnable)
                     statisticsService->addTotalNumberConnectionsAccepted();
 
                 aliveSockets[conn_sock] = std::chrono::steady_clock::now();
@@ -395,7 +395,7 @@ void onyxup::HttpServer::run() noexcept {
                 /*
                  * Подготавливаем входной и выходной буфер, выделяем память
                  */
-                buffers[conn_sock] = buffer::bufferFactory(maxInputBufferLength, maxOutputBUfferLength);
+                buffers[conn_sock] = buffer::bufferFactory(maxInputBufferLength, maxOutputBufferLength);
                 if (buffers[conn_sock] == nullptr) {
                     LOGE << "Ошибка выделение памяти";
                     closeSocket(conn_sock);
@@ -414,7 +414,7 @@ void onyxup::HttpServer::run() noexcept {
                     continue;
                 }
                 requests[conn_sock]->setFD(conn_sock);
-                requests[conn_sock]->setMaxOutputLengthBuffer(maxOutputBUfferLength);
+                requests[conn_sock]->setMaxOutputLengthBuffer(maxOutputBufferLength);
             } else {
                 if (events[i].events & EPOLLIN) {
                     char data[4096];
@@ -642,7 +642,7 @@ onyxup::ResponseBase onyxup::HttpServer::defaultStaticResourcesCallback(onyxup::
     /*
      * Проверяем кеш иначе получаем ресурс и заносим в кеш
      */
-    if (cachedStaticResources) {
+    if (isCachedStaticResources) {
         std::unordered_map<std::string, ResponseBase>::iterator iter = cachedStaticResourcesMap.find(
                     request->getURIRef());
         if (iter == cachedStaticResourcesMap.end()) {
@@ -713,7 +713,7 @@ void onyxup::HttpServer::setLimitLocalTasks(int limit) {
 }
 
 void onyxup::HttpServer::setCachedStaticResources(bool flag) {
-    cachedStaticResources = flag;
+    isCachedStaticResources = flag;
 }
 
 void onyxup::HttpServer::setPathToConfigurationFile(const std::string &file) {
@@ -721,7 +721,7 @@ void onyxup::HttpServer::setPathToConfigurationFile(const std::string &file) {
 }
 
 void onyxup::HttpServer::setStatisticsEnable(bool enable) {
-    statisticsEnable = enable;
+    isStatisticsEnable = enable;
 }
 
 void onyxup::HttpServer::setStatisticsUrl(const std::string &url) {
@@ -744,5 +744,5 @@ void onyxup::HttpServer::setMaxInputBufferLength(size_t len) {
 }
 
 void onyxup::HttpServer::setMaxOutputBufferLength(size_t len) {
-    maxOutputBUfferLength = len;
+    maxOutputBufferLength = len;
 }

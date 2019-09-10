@@ -90,7 +90,7 @@ namespace onyxup {
         size_t maxConnection = 10000;
         size_t maxEventsEpoll = 100;
         size_t maxInputBufferLength = 1024 * 1024 * 2;
-        size_t maxOutputBUfferLength = 1024 * 1024 * 2;
+        size_t maxOutputBufferLength = 1024 * 1024 * 2;
         PtrBuffer * buffers;
         PtrRequest * requests;
         std::vector<std::chrono::time_point<std::chrono::steady_clock>> aliveSockets;
@@ -101,13 +101,13 @@ namespace onyxup {
         ThreadSafeQueue<PtrTask> staticTasksQueue;
         ThreadSafeQueue<PtrTask> performedTasksQueue;
 
-        static bool statisticsEnable;
+        static bool isStatisticsEnable;
         static std::string statisticsUrl;
         static int timeLimitRequestSeconds;
         static int limitLocalTasks;
         static std::string pathToStaticResources;
-        static bool compressStaticResources;
-        static bool cachedStaticResources;
+        static bool isCompressStaticResources;
+        static bool isCachedStaticResources;
         static std::string pathToConfigurationFile;
         static std::unordered_map<std::string, std::string> mimeTypesMap;
         static std::unordered_map<std::string, ResponseBase> cachedStaticResourcesMap;
@@ -145,7 +145,7 @@ namespace onyxup {
         }
 
         static void setCompressStaticResources(bool compress){
-            compressStaticResources = compress;
+            isCompressStaticResources = compress;
         }
 
         static ResponseBase defaultStaticResourcesCallback(PtrCRequest request);
