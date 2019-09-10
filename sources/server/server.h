@@ -148,7 +148,7 @@ namespace onyxup {
             compressStaticResources = compress;
         }
 
-        static ResponseBase defaultCallbackStaticResources(PtrCRequest request);
+        static ResponseBase defaultStaticResourcesCallback(PtrCRequest request);
 
         static const char * getVersion() {
             return VERSION_APPLICATION;

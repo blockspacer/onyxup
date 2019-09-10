@@ -621,7 +621,7 @@ onyxup::HttpServer::~HttpServer() {
     delete[] requests;
 }
 
-onyxup::ResponseBase onyxup::HttpServer::defaultCallbackStaticResources(onyxup::PtrCRequest request) {
+onyxup::ResponseBase onyxup::HttpServer::defaultStaticResourcesCallback(onyxup::PtrCRequest request) {
     /*
      * Определяем content type по расширению файла
      */

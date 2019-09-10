@@ -92,11 +92,11 @@ int main() {
     server.addRoute("GET", "^/json", json, onyxup::EnumTaskType ::LOCAL_TASK);
     server.addRoute("GET", "^/file$", file,onyxup::EnumTaskType ::LOCAL_TASK);
     server.addRoute("GET", "^/params.+$", params,onyxup::EnumTaskType ::LOCAL_TASK);
-    server.addRoute("POST", "^/multipart-form", multipart_form, onyxup::EnumTaskType ::LOCAL_TASK);
+    server.addRoute("POST", "^/multipart-form", multipartForm, onyxup::EnumTaskType ::LOCAL_TASK);
     /*
      * Route для статических файлов
      */
-    server.addRoute("GET", "^/static/.+$", onyxup::HttpServer::defaultCallbackStaticResources, onyxup::EnumTaskType ::STATIC_RESOURCES_TASK);
+    server.addRoute("GET", "^/static/.+$", onyxup::HttpServer::defaultStaticResourcesCallback, onyxup::EnumTaskType ::STATIC_RESOURCES_TASK);
 
     /*
      * Путь до расположения статических файлов
