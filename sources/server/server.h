@@ -90,7 +90,7 @@ namespace onyxup {
         size_t maxConnection = 10000;
         size_t maxEventsEpoll = 100;
         size_t maxInputBufferLength = 1024 * 1024 * 2;
-        size_t maxOutputBufferLength = 1024 * 1024 * 2;
+        size_t maxOutputBufferLength = 1024 * 1024 * 75;
         PtrBuffer * buffers;
         PtrRequest * requests;
         std::vector<std::chrono::time_point<std::chrono::steady_clock>> aliveSockets;
